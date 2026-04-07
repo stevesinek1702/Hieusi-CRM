@@ -1,0 +1,6 @@
+node_modules/
+dist/
+data/credentials.json
+data/uploads/
+*.log
+.env

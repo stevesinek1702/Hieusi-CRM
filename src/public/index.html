@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hiếu Sĩ CRM</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#e0e0e0;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:16px}
+h1{color:#00a8ff;margin-bottom:4px;font-size:1.5rem}
+.subtitle{color:#666;margin-bottom:12px;font-size:.85rem}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:16px;margin-bottom:12px}
+.card h2{color:#00a8ff;font-size:1rem;margin-bottom:10px}
+.status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.status-dot.online{background:#00e676}.status-dot.offline{background:#ff5252}
+.status-dot.waiting{background:#ffc107;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+button{background:#00a8ff;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.85rem;margin:3px;transition:background .2s}
+button:hover{background:#0090dd}button:disabled{background:#333;color:#666;cursor:not-allowed}
+button.danger{background:#d32f2f}button.danger:hover{background:#b71c1c}
+input[type="file"],textarea{background:#111;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:8px;width:100%;margin:4px 0;font-family:inherit;font-size:.85rem}
+textarea{min-height:80px;resize:vertical}
+.progress-bar{background:#222;border-radius:8px;height:22px;overflow:hidden;margin:10px 0;position:relative}
+.progress-fill{background:linear-gradient(90deg,#00a8ff,#00e676);height:100%;transition:width .3s;border-radius:8px}
+.progress-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:.75rem;font-weight:bold;color:#fff}
+.stats{display:flex;gap:12px;margin:10px 0;flex-wrap:wrap}
+.stat{background:#111;padding:10px 14px;border-radius:8px;flex:1;min-width:100px;text-align:center}
+.stat .num{font-size:1.3rem;font-weight:bold;color:#00a8ff}.stat .label{font-size:.7rem;color:#666;margin-top:2px}
+.preview-box{background:#111;border:1px solid #333;border-radius:8px;padding:10px;margin:6px 0;white-space:pre-wrap;font-size:.85rem}
+.error-list{color:#ff5252;font-size:.8rem;margin-top:6px}
+.help-text{color:#666;font-size:.78rem;margin:3px 0}
+.qr-box{text-align:center;margin:12px 0}.qr-box img{max-width:260px;border-radius:12px;border:2px solid #333}
+
+/* Tabs */
+.tab-bar{display:flex;position:sticky;top:0;z-index:50;background:#0f0f0f;padding:8px 0 0 0;gap:4px}
+.tab-btn{padding:10px 20px;font-size:.85rem;font-weight:600;border:none;border-radius:10px 10px 0 0;cursor:pointer;transition:all .15s;color:#888;background:#151515}
+.tab-btn:hover{color:#ccc;background:#1a1a1a}
+.tab-btn.active{color:#00a8ff;background:#1a1a1a;box-shadow:inset 0 2px 0 #00a8ff}
+.tab-panel{background:#1a1a1a;border:1px solid #2a2a2a;border-top:2px solid #00a8ff;border-radius:0 0 12px 12px;padding:16px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📱 Hiếu Sĩ CRM</h1>
+  <p class="subtitle">Chăm sóc khách hàng qua Zalo · Port 10001</p>
+
+  <!-- Login -->
+  <div class="card" style="padding:10px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div id="loginStatus"><span class="status-dot waiting"></span> Đang tạo mã QR...</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button onclick="loadFriends()" id="btnFriends" style="display:none;padding:5px 12px;font-size:.78rem">👥 Bạn bè</button>
+        <button onclick="refreshFriendsList()" id="btnRefreshFriends" style="display:none;padding:5px 12px;font-size:.78rem;background:#555">🔄 Cập nhật</button>
+        <button onclick="doLogout()" id="btnLogout" class="danger" style="display:none;padding:5px 12px;font-size:.78rem">Đăng xuất</button>
+        <button onclick="retryLogin()" id="btnRetry" style="display:none;padding:5px 12px;font-size:.78rem">🔄 Thử lại</button>
+      </div>
+    </div>
+    <div id="qrSection" style="display:none;margin-top:10px">
+      <p class="help-text">Mở app Zalo → Quét mã QR bên dưới</p>
+      <div class="qr-box"><img id="qrImg" alt="QR Code" /></div>
+    </div>
+    <div id="friendInfo" style="color:#999;font-size:.78rem;margin-top:3px"></div>
+    <div id="friendSearchWrap" style="display:none;margin-top:4px">
+      <input type="text" id="friendSearch" placeholder="🔍 Tìm bạn bè..." oninput="filterFriends()" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:5px 8px;border-radius:8px;font-size:.78rem;width:100%;margin:0" />
+    </div>
+    <div id="labelWrap" style="display:none;margin-top:4px">
+      <div style="display:flex;gap:3px;flex-wrap:wrap" id="labelTags"></div>
+      <div style="margin-top:4px">
+        <button onclick="addLabelContactsToList()" id="btnAddFromLabels" style="display:none;background:#4caf50;padding:5px 12px;font-size:.78rem">📥 Thêm vào DS người nhận</button>
+        <span id="labelSelectedInfo" style="color:#999;font-size:.7rem;margin-left:6px"></span>
+      </div>
+    </div>
+    <div id="friendListWrap" style="display:none;margin-top:6px;max-height:220px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999;text-align:left">
+          <th style="padding:3px 5px">#</th><th style="padding:3px 5px">Tên hiển thị</th><th style="padding:3px 5px">Tên danh bạ</th><th style="padding:3px 5px">Tên Zalo</th><th style="padding:3px 5px">SĐT</th><th style="padding:3px 5px;width:50px"></th>
+        </tr></thead>
+        <tbody id="friendTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('send')">✉️ Gửi tin hàng loạt</button>
+    <button class="tab-btn" onclick="switchTab('addfriend')">🤝 Tự động kết bạn</button>
+    <button class="tab-btn" onclick="switchTab('stranger')">📨 Gửi tin người lạ</button>
+    <button class="tab-btn" onclick="switchTab('care')">💝 Chăm sóc KH cũ</button>
+  </div>
+
+  <!-- TAB 1: Gửi tin hàng loạt -->
+  <div id="panelSend" class="tab-panel">
+    <h2>📋 Danh sách người nhận</h2>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <input type="file" id="contactFile" accept=".csv,.xlsx,.xls" style="flex:1;min-width:180px;margin:0" />
+      <button onclick="uploadContacts()">📤 Tải lên</button>
+      <button onclick="saveContacts()" style="background:#4caf50">💾 Lưu</button>
+      <button onclick="loadSavedContacts()">📂 Tải lại</button>
+      <button onclick="clearAllContacts()" class="danger">🗑 Xóa hết</button>
+    </div>
+    <p class="help-text">File CSV/Excel: Danh bạ | Danh xưng | Tên gọi</p>
+    <div id="contactSummary" style="color:#999;font-size:.8rem;margin:6px 0"></div>
+    <div id="contactTableWrap" style="display:none;margin-top:8px;max-height:250px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999;text-align:left">
+          <th style="padding:6px;width:35px">#</th><th style="padding:6px">Danh bạ Zalo</th><th style="padding:6px;width:90px">Xưng hô</th><th style="padding:6px;width:110px">Tên</th><th style="padding:6px;width:100px">Label</th><th style="padding:6px;width:140px">Match</th><th style="padding:6px;width:35px"></th>
+        </tr></thead>
+        <tbody id="contactTableBody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px">
+      <button onclick="rematch()" id="btnRematch" style="display:none;background:#4caf50;padding:6px 14px;font-size:.8rem">🔗 Match với danh bạ Zalo</button>
+    </div>
+    <div style="margin-top:8px;border-top:1px solid #2a2a2a;padding-top:8px">
+      <p class="help-text">Thêm thủ công:</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="manualName" placeholder="Tên danh bạ Zalo" style="flex:2;min-width:140px;background:#111;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:8px;font-size:.8rem" />
+        <input type="text" id="manualTitle" placeholder="Danh xưng" style="flex:1;min-width:70px;background:#111;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:8px;font-size:.8rem" />
+        <input type="text" id="manualCall" placeholder="Tên gọi" style="flex:1;min-width:70px;background:#111;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:8px;font-size:.8rem" />
+        <button onclick="addManualContact()" style="white-space:nowrap">+ Thêm</button>
+      </div>
+    </div>
+    <div style="margin-top:12px;border-top:1px solid #2a2a2a;padding-top:12px">
+      <h2>✉️ Soạn & Gửi tin</h2>
+      <p class="help-text">Dùng {danh_xung} và {ten} để cá nhân hóa</p>
+      <textarea id="msgTemplate" placeholder="Chào {danh_xung} {ten}, em bên Hiếu Sĩ xin gửi..." oninput="onTemplateInput(event)" onkeydown="onTemplateKeydown(event)"></textarea>
+      <div id="suggestBox" style="display:none;position:fixed;background:#222;border:1px solid #444;border-radius:8px;overflow:hidden;z-index:100;font-size:.85rem;box-shadow:0 4px 12px rgba(0,0,0,.5)"></div>
+      <p class="help-text">Đính kèm hình ảnh (tùy chọn):</p>
+      <input type="file" id="imageFile" accept="image/*" />
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button onclick="previewMsg()">👁 Xem trước</button>
+        <button onclick="startSend()" id="btnSend" style="background:#4caf50">🚀 Bắt đầu gửi</button>
+      </div>
+      <div class="preview-box" id="previewBox" style="display:none"></div>
+      <div class="progress-bar" id="progressBar" style="display:none"><div class="progress-fill" id="progressFill" style="width:0%"></div><div class="progress-text" id="progressText">0%</div></div>
+      <div class="stats" id="sendStats" style="display:none">
+        <div class="stat"><div class="num" id="sentCount">0</div><div class="label">Đã gửi</div></div>
+        <div class="stat"><div class="num" id="failCount">0</div><div class="label">Lỗi</div></div>
+        <div class="stat"><div class="num" id="currentContact">-</div><div class="label">Đang gửi</div></div>
+      </div>
+      <div class="error-list" id="errorList"></div>
+    </div>
+  </div>
+
+  <!-- TAB 2: Tự động kết bạn -->
+  <div id="panelAddfriend" class="tab-panel" style="display:none">
+    <h2>🤝 Tự động kết bạn</h2>
+    <p class="help-text">Nhập danh sách SĐT (mỗi dòng 1 số, có thể kèm tên). Bấm "Tra cứu" để tự lấy tên + danh xưng.</p>
+    <textarea id="addFriendPhones" placeholder="0901234567&#10;0912345678&#10;0933456789"></textarea>
+    <div style="display:flex;gap:6px;margin:6px 0;align-items:center;flex-wrap:wrap">
+      <button onclick="bulkLookup('af')" id="btnAfLookup" style="background:#555;padding:6px 14px;font-size:.8rem">🔍 Tra cứu tất cả</button>
+      <span id="afLookupStatus" style="font-size:.78rem;color:#999"></span>
+    </div>
+    <div id="afLookupTable" style="display:none;margin:8px 0;max-height:250px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999"><th style="padding:4px 5px">#</th><th style="padding:4px 5px">SĐT</th><th style="padding:4px 5px">Tên Zalo</th><th style="padding:4px 5px">{ten}</th><th style="padding:4px 5px">{danh_xung}</th><th style="padding:4px 5px">Trạng thái</th></tr></thead>
+        <tbody id="afLookupBody"></tbody>
+      </table>
+    </div>
+    <p class="help-text">Lời nhắn kết bạn (dùng {ten} và {danh_xung} để cá nhân hóa):</p>
+    <input type="text" id="addFriendMsg" value="Chào {danh_xung} {ten}, mình là Hiếu Sĩ. Rất vui được kết nối!" oninput="onTemplateInput(event)" onkeydown="onTemplateKeydown(event)" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:8px;width:100%;font-size:.85rem;margin:4px 0" />
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+      <button onclick="startAddFriend()" id="btnAddFriend" style="background:#4caf50">🚀 Bắt đầu kết bạn</button>
+      <label style="color:#999;font-size:.78rem;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="afAutoSave" checked style="accent-color:#00a8ff"> Tự lưu vào DS KH tiềm năng</label>
+    </div>
+    <div class="progress-bar" id="addFriendBar" style="display:none"><div class="progress-fill" id="addFriendFill" style="width:0%"></div><div class="progress-text" id="addFriendPct">0%</div></div>
+    <div class="stats" id="addFriendStats" style="display:none">
+      <div class="stat"><div class="num" id="afSent">0</div><div class="label">Đã gửi</div></div>
+      <div class="stat"><div class="num" id="afFail">0</div><div class="label">Lỗi</div></div>
+      <div class="stat"><div class="num" id="afCurrent">-</div><div class="label">Đang xử lý</div></div>
+    </div>
+    <div id="afResultTable" style="display:none;margin-top:10px;max-height:250px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999"><th style="padding:4px 5px">#</th><th style="padding:4px 5px">SĐT</th><th style="padding:4px 5px">Tên</th><th style="padding:4px 5px">Trạng thái</th></tr></thead>
+        <tbody id="afResultBody"></tbody>
+      </table>
+    </div>
+    <div class="error-list" id="afErrors"></div>
+  </div>
+
+  <!-- TAB 3: Gửi tin người lạ -->
+  <div id="panelStranger" class="tab-panel" style="display:none">
+    <h2>📨 Gửi tin đến người lạ</h2>
+    <p class="help-text">Nhập danh sách SĐT (mỗi dòng 1 số). Bấm "Tra cứu" để tự lấy tên. Giới hạn: <span style="color:#ffc107;font-weight:bold">~30 tin/ngày</span></p>
+    <textarea id="strangerPhones" placeholder="0901234567&#10;0912345678&#10;0933456789"></textarea>
+    <div style="display:flex;gap:6px;margin:6px 0;align-items:center;flex-wrap:wrap">
+      <button onclick="bulkLookup('st')" id="btnStLookup" style="background:#555;padding:6px 14px;font-size:.8rem">🔍 Tra cứu tất cả</button>
+      <span id="stLookupStatus" style="font-size:.78rem;color:#999"></span>
+    </div>
+    <div id="stLookupTable" style="display:none;margin:8px 0;max-height:250px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999"><th style="padding:4px 5px">#</th><th style="padding:4px 5px">SĐT</th><th style="padding:4px 5px">Tên Zalo</th><th style="padding:4px 5px">{ten}</th><th style="padding:4px 5px">{danh_xung}</th><th style="padding:4px 5px">Trạng thái</th></tr></thead>
+        <tbody id="stLookupBody"></tbody>
+      </table>
+    </div>
+    <p class="help-text">Tin nhắn (dùng {ten} và {danh_xung} để cá nhân hóa):</p>
+    <textarea id="strangerMsg" placeholder="Chào {danh_xung} {ten}, em là Hiếu Sĩ..." style="min-height:60px" oninput="onTemplateInput(event)" onkeydown="onTemplateKeydown(event)"></textarea>
+    <p class="help-text">Đính kèm hình ảnh (tùy chọn):</p>
+    <input type="file" id="strangerImage" accept="image/*" />
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+      <button onclick="startStrangerSend()" id="btnStranger" style="background:#4caf50">🚀 Bắt đầu gửi</button>
+      <span id="strangerLimit" style="color:#666;font-size:.75rem"></span>
+    </div>
+    <div class="progress-bar" id="strangerBar" style="display:none"><div class="progress-fill" id="strangerFill" style="width:0%"></div><div class="progress-text" id="strangerPct">0%</div></div>
+    <div class="stats" id="strangerStats" style="display:none">
+      <div class="stat"><div class="num" id="stSent">0</div><div class="label">Đã gửi</div></div>
+      <div class="stat"><div class="num" id="stFail">0</div><div class="label">Lỗi</div></div>
+      <div class="stat"><div class="num" id="stCurrent">-</div><div class="label">Đang gửi</div></div>
+    </div>
+    <div id="stResultTable" style="display:none;margin-top:10px;max-height:250px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999"><th style="padding:4px 5px">#</th><th style="padding:4px 5px">SĐT</th><th style="padding:4px 5px">Tên</th><th style="padding:4px 5px">Trạng thái</th></tr></thead>
+        <tbody id="stResultBody"></tbody>
+      </table>
+    </div>
+    <div class="error-list" id="stErrors"></div>
+  </div>
+
+  <!-- TAB 4: Chăm sóc KH cũ -->
+  <div id="panelCare" class="tab-panel" style="display:none">
+    <h2>💝 Chăm sóc khách hàng cũ</h2>
+    <p class="help-text">Lên lịch gửi tin nhắn chăm sóc đến KH cũ (đã là bạn bè). Hệ thống tự gửi mỗi ngày trong khung giờ đặt.</p>
+
+    <p class="help-text" style="margin-top:8px">Nguồn danh sách: dùng DS người nhận từ tab "Gửi tin hàng loạt" (đã match)</p>
+
+    <div style="margin-top:8px">
+      <p class="help-text">Tin nhắn chăm sóc (dùng {danh_xung} và {ten}):</p>
+      <textarea id="careMsg" placeholder="Chào {danh_xung} {ten}, dạo này {danh_xung} có khỏe không ạ? Em bên Hiếu Sĩ..." oninput="onTemplateInput(event)" onkeydown="onTemplateKeydown(event)"></textarea>
+      <p class="help-text">Đính kèm hình ảnh (tùy chọn):</p>
+      <input type="file" id="careImage" accept="image/*" />
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0">
+      <label style="color:#999;font-size:.78rem">Số tin/ngày:</label>
+      <input type="number" id="schedPerDay" value="30" min="1" max="100" style="width:60px;background:#111;border:1px solid #333;color:#e0e0e0;padding:5px;border-radius:6px;font-size:.8rem;text-align:center" />
+      <label style="color:#999;font-size:.78rem">Từ:</label>
+      <input type="number" id="schedFromHour" value="8" min="0" max="23" style="width:50px;background:#111;border:1px solid #333;color:#e0e0e0;padding:5px;border-radius:6px;font-size:.8rem;text-align:center" />
+      <span style="color:#999">giờ đến</span>
+      <input type="number" id="schedToHour" value="17" min="0" max="23" style="width:50px;background:#111;border:1px solid #333;color:#e0e0e0;padding:5px;border-radius:6px;font-size:.8rem;text-align:center" />
+      <span style="color:#999">giờ</span>
+    </div>
+
+    <div style="display:flex;gap:6px;margin:8px 0">
+      <button onclick="createCareSchedule()" style="background:#4caf50">📅 Tạo lịch chăm sóc</button>
+      <button onclick="pauseResumeSchedule()" id="btnSchedPause" style="display:none;background:#ff9800">⏸ Tạm dừng</button>
+      <button onclick="resumeScheduleAction()" id="btnSchedResume" style="display:none;background:#4caf50">▶ Tiếp tục</button>
+      <button onclick="deleteScheduleAction()" id="btnSchedDelete" style="display:none" class="danger">🗑 Xóa lịch</button>
+    </div>
+
+    <div id="schedInfo" style="color:#999;font-size:.8rem;margin:6px 0"></div>
+    <div id="schedLog" style="font-size:.75rem;color:#666;margin-top:4px"></div>
+  </div>
+
+</div>
+<script src="/public/app.js?v=28"></script>
+</body>
+</html>

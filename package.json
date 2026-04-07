@@ -1,0 +1,19 @@
+{
+  "name": "hieusi-crm",
+  "version": "1.0.0",
+  "description": "CRM chăm sóc khách hàng cho TK Zalo Hiếu Sĩ",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.4.0",
+    "sharp": "^0.33.4",
+    "xlsx": "^0.18.5",
+    "zca-js": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}
