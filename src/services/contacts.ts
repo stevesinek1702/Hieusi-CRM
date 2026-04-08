@@ -257,7 +257,7 @@ export async function matchContactsWithFriends(contacts: Contact[], friends: any
     let bestSaved: typeof savedNames[0] | null = null;
 
     for (const sn of savedNames) {
-      const score = calcMatchScore(searchNorm, sn.norm, c.tenDanhBa, sn.raw);
+      const score = calcMatchScore(searchNorm, sn.norm);
       if (score > bestSavedScore) {
         bestSavedScore = score;
         bestSaved = sn;
