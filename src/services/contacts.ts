@@ -152,7 +152,7 @@ function wordMatchScore(search: string, target: string): number {
   return Math.round(ratio * 100);
 }
 
-const MATCH_THRESHOLD = 60;
+const MATCH_THRESHOLD = 80; // nâng lên 80 để tránh match nhầm
 
 export function matchContactsWithFriends(contacts: Contact[], friends: any[]): Contact[] {
   const friendList = friends.map((f: any) => ({
