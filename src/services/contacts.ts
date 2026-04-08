@@ -110,7 +110,21 @@ function levenshtein(a: string, b: string): number {
   return dp[m][n];
 }
 
-const MATCH_THRESHOLD = 60; // minimum score to consider a match
+// Normalize for matching: remove diacritics, dots, extra spaces
+function normalizeMatch(str: string): string {
+  return str
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "d")
+    .replace(/[.\-_,]/g, " ")  // dots, dashes → spaces
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const MATCH_THRESHOLD = 60;
 
 export function matchContactsWithFriends(contacts: Contact[], friends: any[]): Contact[] {
   const friendList = friends.map((f: any) => ({
@@ -120,99 +134,59 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
     alias: f.alias || "",
   }));
 
-  // Build lookup maps for exact matching (case-insensitive, trimmed)
-  const exactMap = new Map<string, typeof friendList[0]>();
+  // Build normalized lookup for exact + prefix matching
+  const friendNames: { friend: typeof friendList[0]; raw: string; norm: string }[] = [];
   for (const f of friendList) {
     for (const name of [f.alias, f.displayName, f.zaloName]) {
       if (name) {
-        const key = name.trim().toLowerCase();
-        if (!exactMap.has(key)) exactMap.set(key, f);
+        friendNames.push({ friend: f, raw: name, norm: normalizeMatch(name) });
       }
     }
   }
 
   return contacts.map((c) => {
-    const searchName = c.tenDanhBa.trim().toLowerCase();
+    const searchRaw = c.tenDanhBa.trim().toLowerCase();
+    const searchNorm = normalizeMatch(c.tenDanhBa);
 
-    // 1. Try exact match first (highest priority)
-    const exactFriend = exactMap.get(searchName);
-    if (exactFriend) {
-      return {
-        ...c,
-        zaloId: exactFriend.userId,
-        zaloName: exactFriend.alias || exactFriend.displayName || exactFriend.zaloName,
-        matched: true,
-        matchScore: 100,
-      };
-    }
-
-    // 2. Try "starts with" match (alias starts with contact name or vice versa)
-    for (const f of friendList) {
-      for (const name of [f.alias, f.displayName, f.zaloName]) {
-        if (!name) continue;
-        const n = name.trim().toLowerCase();
-        if (n.startsWith(searchName) || searchName.startsWith(n)) {
-          const ratio = Math.min(searchName.length, n.length) / Math.max(searchName.length, n.length);
-          if (ratio > 0.4) { // at least 40% overlap
-            return {
-              ...c,
-              zaloId: f.userId,
-              zaloName: name,
-              matched: true,
-              matchScore: Math.round(90 + ratio * 8), // 90-98
-            };
-          }
-        }
+    // 1. Exact match (raw)
+    for (const fn of friendNames) {
+      if (fn.raw.trim().toLowerCase() === searchRaw) {
+        return { ...c, zaloId: fn.friend.userId, zaloName: fn.raw, matched: true, matchScore: 100 };
       }
     }
 
-    // 3. Try normalized starts-with (remove diacritics)
-    const normalizedSearch = normalize(c.tenDanhBa);
-    for (const f of friendList) {
-      for (const name of [f.alias, f.displayName, f.zaloName]) {
-        if (!name) continue;
-        const nn = normalize(name);
-        if (nn.startsWith(normalizedSearch) || normalizedSearch.startsWith(nn)) {
-          const ratio = Math.min(normalizedSearch.length, nn.length) / Math.max(normalizedSearch.length, nn.length);
-          if (ratio > 0.4) {
-            return {
-              ...c,
-              zaloId: f.userId,
-              zaloName: name,
-              matched: true,
-              matchScore: Math.round(85 + ratio * 10),
-            };
-          }
-        }
+    // 2. Exact match (normalized - ignoring dots, diacritics)
+    for (const fn of friendNames) {
+      if (fn.norm === searchNorm) {
+        return { ...c, zaloId: fn.friend.userId, zaloName: fn.raw, matched: true, matchScore: 99 };
       }
     }
 
-    // 4. Fuzzy match (only if no exact/prefix match found)
+    // 3. Prefix match: alias/name STARTS WITH search term (normalized)
+    let bestPrefix: typeof friendNames[0] | null = null;
+    let bestPrefixLen = 0;
+    for (const fn of friendNames) {
+      if (fn.norm.startsWith(searchNorm) && searchNorm.length > bestPrefixLen) {
+        bestPrefix = fn;
+        bestPrefixLen = searchNorm.length;
+      }
+    }
+    if (bestPrefix && searchNorm.length >= 4) {
+      const ratio = searchNorm.length / bestPrefix.norm.length;
+      return { ...c, zaloId: bestPrefix.friend.userId, zaloName: bestPrefix.raw, matched: true, matchScore: Math.round(90 + ratio * 8) };
+    }
+
+    // 4. Fuzzy match (last resort)
     let bestScore = 0;
-    let bestFriend: typeof friendList[0] | null = null;
-    let bestName = "";
-
-    for (const f of friendList) {
-      for (const fname of [f.alias, f.displayName, f.zaloName]) {
-        if (!fname) continue;
-        const score = similarity(c.tenDanhBa, fname);
-        if (score > bestScore) {
-          bestScore = score;
-          bestFriend = f;
-          bestName = fname;
-        }
-      }
+    let bestFn: typeof friendNames[0] | null = null;
+    for (const fn of friendNames) {
+      const score = similarity(c.tenDanhBa, fn.raw);
+      if (score > bestScore) { bestScore = score; bestFn = fn; }
+    }
+    if (bestFn && bestScore >= MATCH_THRESHOLD) {
+      return { ...c, zaloId: bestFn.friend.userId, zaloName: bestFn.raw, matched: true, matchScore: bestScore };
     }
 
-    if (bestFriend && bestScore >= MATCH_THRESHOLD) {
-      return {
-        ...c,
-        zaloId: bestFriend.userId,
-        zaloName: bestName,
-        matched: true,
-        matchScore: bestScore,
-      };
-    }
     return { ...c, matched: false, matchScore: 0 };
   });
 }
