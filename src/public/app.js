@@ -436,6 +436,7 @@ async function loadContactTable() {
 
     document.getElementById("contactTableWrap").style.display = "block";
     document.getElementById("btnRematch").style.display = "inline-block";
+    document.getElementById("btnUnmatchLow").style.display = "inline-block";
 
     var tbody = document.getElementById("contactTableBody");
     tbody.innerHTML = data.contacts
