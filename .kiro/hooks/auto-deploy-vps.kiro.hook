@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Auto Deploy to VPS",
+  "description": "Auto commit, push to GitHub, and deploy to VPS when source files are saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts",
+      "src/**/*.js",
+      "src/**/*.html"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "git add -A && git commit -m \"auto: update\" --allow-empty && git push origin main && ssh -o StrictHostKeyChecking=no root@14.225.224.8 \"bash /root/Hieusi-CRM/deploy.sh\"",
+    "timeout": 60
+  }
+}

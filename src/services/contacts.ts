@@ -120,13 +120,54 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
     alias: f.alias || "",
   }));
 
+  // Build lookup maps for exact matching (case-insensitive, trimmed)
+  const exactMap = new Map<string, typeof friendList[0]>();
+  for (const f of friendList) {
+    for (const name of [f.alias, f.displayName, f.zaloName]) {
+      if (name) {
+        const key = name.trim().toLowerCase();
+        if (!exactMap.has(key)) exactMap.set(key, f);
+      }
+    }
+  }
+
   return contacts.map((c) => {
+    const searchName = c.tenDanhBa.trim().toLowerCase();
+
+    // 1. Try exact match first (highest priority)
+    const exactFriend = exactMap.get(searchName);
+    if (exactFriend) {
+      return {
+        ...c,
+        zaloId: exactFriend.userId,
+        zaloName: exactFriend.alias || exactFriend.displayName || exactFriend.zaloName,
+        matched: true,
+        matchScore: 100,
+      };
+    }
+
+    // 2. Try normalized exact match (remove diacritics)
+    const normalizedSearch = normalize(c.tenDanhBa);
+    for (const f of friendList) {
+      for (const name of [f.alias, f.displayName, f.zaloName]) {
+        if (name && normalize(name) === normalizedSearch) {
+          return {
+            ...c,
+            zaloId: f.userId,
+            zaloName: name,
+            matched: true,
+            matchScore: 98,
+          };
+        }
+      }
+    }
+
+    // 3. Fuzzy match (only if no exact match found)
     let bestScore = 0;
     let bestFriend: typeof friendList[0] | null = null;
     let bestName = "";
 
     for (const f of friendList) {
-      // Check against alias (tên danh bạ), displayName, and zaloName
       for (const fname of [f.alias, f.displayName, f.zaloName]) {
         if (!fname) continue;
         const score = similarity(c.tenDanhBa, fname);
