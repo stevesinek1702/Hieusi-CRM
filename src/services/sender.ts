@@ -1,23 +1,25 @@
 import { getApi } from "./zalo";
 import type { Contact } from "./contacts";
 import { ThreadType } from "zca-js";
+import { canSend, increment, getRemaining } from "./ratelimit";
 
 export interface SendProgress {
   total: number;
   sent: number;
   failed: number;
+  skipped: number;
   current: string;
-  status: "idle" | "sending" | "done" | "error";
+  status: "idle" | "sending" | "done" | "error" | "rate_limited";
   errors: { name: string; error: string }[];
 }
 
 let progress: SendProgress = {
-  total: 0, sent: 0, failed: 0, current: "", status: "idle", errors: [],
+  total: 0, sent: 0, failed: 0, skipped: 0, current: "", status: "idle", errors: [],
 };
 
 export function getProgress(): SendProgress { return { ...progress }; }
 export function resetProgress() {
-  progress = { total: 0, sent: 0, failed: 0, current: "", status: "idle", errors: [] };
+  progress = { total: 0, sent: 0, failed: 0, skipped: 0, current: "", status: "idle", errors: [] };
 }
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
@@ -29,51 +31,21 @@ function renderTemplate(template: string, contact: Contact): string {
     .replace(/\{ten\}/g, contact.tenGoi);
 }
 
-export async function startBulkSend(
-  contacts: Contact[],
-  template: string,
-  imagePath?: string
-) {
-  const api = getApi();
-  if (!api) throw new Error("Chưa đăng nhập Zalo");
+const MAX_RETRIES = 2;
 
-  const matched = contacts.filter((c) => c.matched && c.zaloId);
-  progress = {
-    total: matched.length, sent: 0, failed: 0,
-    current: "", status: "sending", errors: [],
-  };
-
-  for (const contact of matched) {
+async function sendWithRetry(api: any, contact: Contact, msg: string, imagePath?: string): Promise<void> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      progress.current = contact.tenDanhBa;
-      const msg = renderTemplate(template, contact);
-
-      // Send message (with optional image attachment)
       if (imagePath) {
-        await api.sendMessage(
-          { msg, attachments: imagePath },
-          contact.zaloId!,
-          ThreadType.User
-        );
+        await api.sendMessage({ msg, attachments: imagePath }, contact.zaloId!, ThreadType.User);
       } else {
         await api.sendMessage(msg, contact.zaloId!, ThreadType.User);
       }
-
-      progress.sent++;
+      return;
     } catch (err: any) {
-      progress.failed++;
-      progress.errors.push({
-        name: contact.tenDanhBa,
-        error: err.message || "Unknown error",
-      });
-    }
-
-    // Delay 5-10s between messages
-    if (progress.sent + progress.failed < matched.length) {
-      await sleep(randomDelay());
+      if (attempt === MAX_RETRIES) throw err;
+      // Chờ lâu hơn trước khi retry
+      await sleep(3000 + attempt * 2000);
     }
   }
-
-  progress.status = "done";
-  progress.current = "";
 }
