@@ -1077,6 +1077,7 @@ async function unmatchContact(index) {
 
 // --- Unmatch all low score (yellow) ---
 async function unmatchLowScore() {
+  if (!confirm("Xóa hẳn các contact có match vàng (dưới 90%) khỏi danh sách?")) return;
   try {
     var res = await fetch("/api/contacts/unmatch-low", {
       method: "POST",
@@ -1085,7 +1086,7 @@ async function unmatchLowScore() {
     });
     var data = await res.json();
     if (data.ok) {
-      alert("Đã bỏ " + data.removed + " match vàng");
+      alert("Đã xóa " + data.removed + " contact match vàng");
       loadContactTable();
     } else alert(data.error);
   } catch (e) {}
