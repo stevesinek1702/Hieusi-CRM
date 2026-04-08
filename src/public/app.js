@@ -1076,6 +1076,22 @@ async function unmatchContact(index) {
   } catch (e) {}
 }
 
+// --- Unmatch all low score (yellow) ---
+async function unmatchLowScore() {
+  try {
+    var res = await fetch("/api/contacts/unmatch-low", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minScore: 90 }),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      alert("Đã bỏ " + data.removed + " match vàng");
+      loadContactTable();
+    } else alert(data.error);
+  } catch (e) {}
+}
+
 // --- Export contacts to xlsx ---
 function exportContacts() {
   window.location.href = "/api/contacts/export";
