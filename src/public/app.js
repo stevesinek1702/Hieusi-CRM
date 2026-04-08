@@ -23,6 +23,21 @@ function switchTab(tab) {
 
 startPolling();
 
+// Load rate limit info
+async function loadRateLimit() {
+  try {
+    var res = await fetch("/api/ratelimit");
+    var data = await res.json();
+    var el = document.getElementById("rateLimitInfo");
+    if (el) {
+      el.style.display = "block";
+      el.innerHTML = "📊 Hôm nay: Gửi tin <b>" + data.bulk.used + "/" + data.bulk.limit + "</b> | Kết bạn <b>" + data.addfriend.used + "/" + data.addfriend.limit + "</b> | Người lạ <b>" + data.stranger.used + "/" + data.stranger.limit + "</b>";
+    }
+  } catch(e) {}
+}
+loadRateLimit();
+setInterval(loadRateLimit, 30000);
+
 function startPolling() {
   if (statusTimer) clearInterval(statusTimer);
   statusTimer = setInterval(pollStatus, 1000);
