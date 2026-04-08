@@ -297,29 +297,6 @@ export async function matchContactsWithFriends(contacts: Contact[], friends: any
   });
 }
 
-// Strict scoring: chỉ match khi thực sự chắc chắn, không match lung tung
-function calcMatchScore(searchNorm: string, targetNorm: string): number {
-  // Exact match
-  if (targetNorm === searchNorm) return 100;
-
-  // Target chứa toàn bộ search (alias dài hơn nhưng chứa đầy đủ tên danh bạ)
-  // e.g. target="chu tao mbb 0913044884" contains search="chu tao mbb 0913044884"
-  if (targetNorm.includes(searchNorm)) {
-    return 95;
-  }
-
-  // Search chứa toàn bộ target - CHỈ khi target đủ dài (>= 70% search)
-  // Tránh "a vu" match với "a vu 735903"
-  if (searchNorm.includes(targetNorm)) {
-    const ratio = targetNorm.length / searchNorm.length;
-    if (ratio >= 0.7) return 90;
-    // Quá ngắn → không match
-    return 0;
-  }
-
-  return 0;
-}
-
 export function exportContactsToXlsx(contacts: Contact[]): Buffer {
   const data = contacts.map((c) => ({
     "Danh bạ Zalo": c.tenDanhBa,
