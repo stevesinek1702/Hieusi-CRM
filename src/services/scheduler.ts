@@ -1,6 +1,7 @@
 import { existsSync } from "fs";
 import { getApi } from "./zalo";
 import { ThreadType } from "zca-js";
+import { canSend, increment } from "./ratelimit";
 
 const SCHEDULE_FILE = "./data/schedule.json";
 
