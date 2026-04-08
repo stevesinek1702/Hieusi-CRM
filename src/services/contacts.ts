@@ -146,23 +146,48 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
       };
     }
 
-    // 2. Try normalized exact match (remove diacritics)
-    const normalizedSearch = normalize(c.tenDanhBa);
+    // 2. Try "starts with" match (alias starts with contact name or vice versa)
     for (const f of friendList) {
       for (const name of [f.alias, f.displayName, f.zaloName]) {
-        if (name && normalize(name) === normalizedSearch) {
-          return {
-            ...c,
-            zaloId: f.userId,
-            zaloName: name,
-            matched: true,
-            matchScore: 98,
-          };
+        if (!name) continue;
+        const n = name.trim().toLowerCase();
+        if (n.startsWith(searchName) || searchName.startsWith(n)) {
+          const ratio = Math.min(searchName.length, n.length) / Math.max(searchName.length, n.length);
+          if (ratio > 0.4) { // at least 40% overlap
+            return {
+              ...c,
+              zaloId: f.userId,
+              zaloName: name,
+              matched: true,
+              matchScore: Math.round(90 + ratio * 8), // 90-98
+            };
+          }
         }
       }
     }
 
-    // 3. Fuzzy match (only if no exact match found)
+    // 3. Try normalized starts-with (remove diacritics)
+    const normalizedSearch = normalize(c.tenDanhBa);
+    for (const f of friendList) {
+      for (const name of [f.alias, f.displayName, f.zaloName]) {
+        if (!name) continue;
+        const nn = normalize(name);
+        if (nn.startsWith(normalizedSearch) || normalizedSearch.startsWith(nn)) {
+          const ratio = Math.min(normalizedSearch.length, nn.length) / Math.max(normalizedSearch.length, nn.length);
+          if (ratio > 0.4) {
+            return {
+              ...c,
+              zaloId: f.userId,
+              zaloName: name,
+              matched: true,
+              matchScore: Math.round(85 + ratio * 10),
+            };
+          }
+        }
+      }
+    }
+
+    // 4. Fuzzy match (only if no exact/prefix match found)
     let bestScore = 0;
     let bestFriend: typeof friendList[0] | null = null;
     let bestName = "";
