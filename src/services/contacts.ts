@@ -207,7 +207,7 @@ function wordMatchScore(search: string, target: string): number {
 
 const MATCH_THRESHOLD = 80; // nâng lên 80 để tránh match nhầm
 
-export function matchContactsWithFriends(contacts: Contact[], friends: any[]): Contact[] {
+export async function matchContactsWithFriends(contacts: Contact[], friends: any[]): Promise<Contact[]> {
   const friendList = friends.map((f: any) => ({
     userId: f.userId,
     displayName: f.displayName || "",
@@ -215,7 +215,7 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
     alias: f.alias || "",
   }));
 
-  // Build all name entries
+  // Build all name entries from friends
   const friendNames: { friend: typeof friendList[0]; raw: string; norm: string }[] = [];
   for (const f of friendList) {
     for (const name of [f.alias, f.displayName, f.zaloName]) {
@@ -225,37 +225,23 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
     }
   }
 
+  // Load saved sources as fallback (contacts_saved, addfriend_results, stranger_results)
+  const savedSources = await loadSavedSources();
+  const savedNames: { entry: SavedEntry; raw: string; norm: string }[] = [];
+  for (const s of savedSources) {
+    if (s.name) savedNames.push({ entry: s, raw: s.name, norm: normalizeMatch(s.name) });
+    if (s.zaloName) savedNames.push({ entry: s, raw: s.zaloName, norm: normalizeMatch(s.zaloName) });
+  }
+
   return contacts.map((c) => {
     const searchNorm = normalizeMatch(c.tenDanhBa);
 
-    // Score all friends and pick the best
+    // 1. Score all friends first
     let bestScore = 0;
     let bestFn: typeof friendNames[0] | null = null;
 
     for (const fn of friendNames) {
-      let score = 0;
-
-      // Exact normalized match
-      if (fn.norm === searchNorm) {
-        score = 100;
-      }
-      // Target contains search (search is substring of alias)
-      else if (fn.norm.includes(searchNorm)) {
-        score = 90 + Math.round((searchNorm.length / fn.norm.length) * 8);
-      }
-      // Search contains target
-      else if (searchNorm.includes(fn.norm)) {
-        score = 85 + Math.round((fn.norm.length / searchNorm.length) * 10);
-      }
-      // Word-level matching
-      else {
-        const wordScore = wordMatchScore(c.tenDanhBa, fn.raw);
-        if (wordScore >= 80) {
-          score = Math.round(60 + wordScore * 0.35);
-        }
-        // No fuzzy fallback - if words don't match well enough, skip
-      }
-
+      const score = calcMatchScore(searchNorm, fn.norm, c.tenDanhBa, fn.raw);
       if (score > bestScore) {
         bestScore = score;
         bestFn = fn;
@@ -265,6 +251,47 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
     if (bestFn && bestScore >= MATCH_THRESHOLD) {
       return { ...c, zaloId: bestFn.friend.userId, zaloName: bestFn.raw, matched: true, matchScore: bestScore };
     }
+
+    // 2. Fallback: match from saved sources (contacts_saved, addfriend, stranger)
+    let bestSavedScore = 0;
+    let bestSaved: typeof savedNames[0] | null = null;
+
+    for (const sn of savedNames) {
+      const score = calcMatchScore(searchNorm, sn.norm, c.tenDanhBa, sn.raw);
+      if (score > bestSavedScore) {
+        bestSavedScore = score;
+        bestSaved = sn;
+      }
+    }
+
+    if (bestSaved && bestSavedScore >= MATCH_THRESHOLD) {
+      return { ...c, zaloId: bestSaved.entry.userId, zaloName: bestSaved.raw, matched: true, matchScore: bestSavedScore };
+    }
+
     return { ...c, matched: false, matchScore: 0 };
   });
+}
+
+// Extracted scoring logic for reuse
+function calcMatchScore(searchNorm: string, targetNorm: string, searchRaw: string, targetRaw: string): number {
+  // Exact normalized match
+  if (targetNorm === searchNorm) return 100;
+
+  // Target contains search
+  if (targetNorm.includes(searchNorm)) {
+    return 90 + Math.round((searchNorm.length / targetNorm.length) * 8);
+  }
+
+  // Search contains target
+  if (searchNorm.includes(targetNorm)) {
+    return 85 + Math.round((targetNorm.length / searchNorm.length) * 10);
+  }
+
+  // Word-level matching
+  const wordScore = wordMatchScore(searchRaw, targetRaw);
+  if (wordScore >= 80) {
+    return Math.round(60 + wordScore * 0.35);
+  }
+
+  return 0;
 }
