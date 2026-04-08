@@ -444,8 +444,7 @@ async function loadContactTable() {
         var matchCell = "-";
         if (c.matched) {
           var color = c.matchScore >= 90 ? "#69f0ae" : c.matchScore >= 70 ? "#ffc107" : "#ff9800";
-          matchCell = '<span style="color:' + color + '">' + (c.zaloName || "✓") + " (" + (c.matchScore || 100) + "%)</span>" +
-            ' <button onclick="unmatchContact(' + i + ')" style="background:#555;padding:2px 6px;font-size:.65rem;margin-left:4px" title="Bỏ match">✗</button>';
+          matchCell = '<span style="color:' + color + '">' + (c.zaloName || "✓") + " (" + (c.matchScore || 100) + "%)</span>";
         }
         var labelCell = c.label ? '<span style="padding:2px 6px;border-radius:4px;background:#333;color:#aaa;font-size:0.7rem">' + c.label + '</span>' : '-';
         return (
