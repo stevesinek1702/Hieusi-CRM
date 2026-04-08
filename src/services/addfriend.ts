@@ -27,18 +27,30 @@ let progress: AddFriendProgress = {
 export function getAddFriendProgress() { return { ...progress }; }
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-function randomDelay() { return 5000 + Math.random() * 5000; }
+function randomDelay() { return 8000 + Math.random() * 7000; } // 8-15s cho kết bạn
 
 export async function startAddFriends(entries: AddFriendEntry[], messageTemplate: string) {
   const api = getApi();
   if (!api) throw new Error("Chưa đăng nhập Zalo");
 
+  const remaining = getRemaining("addfriend");
+  if (remaining <= 0) {
+    throw new Error("Đã đạt giới hạn kết bạn hôm nay (40/ngày). Thử lại ngày mai.");
+  }
+
+  const toProcess = entries.slice(0, remaining);
+
   progress = {
-    total: entries.length, sent: 0, failed: 0,
-    current: "", status: "sending", results: entries.map(e => ({ ...e, status: "pending" as const })),
+    total: toProcess.length, sent: 0, failed: 0,
+    current: "", status: "sending", results: toProcess.map(e => ({ ...e, status: "pending" as const })),
   };
 
-  for (let i = 0; i < entries.length; i++) {
+  for (let i = 0; i < toProcess.length; i++) {
+    if (!canSend("addfriend")) {
+      console.log("[AddFriend] Đạt giới hạn, dừng.");
+      break;
+    }
+
     const entry = progress.results[i];
     try {
       progress.current = entry.phone + (entry.name ? " (" + entry.name + ")" : "");
