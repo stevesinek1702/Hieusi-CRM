@@ -127,6 +127,24 @@ function scheduleNextRun() {
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 function randomDelay() { return 5000 + Math.random() * 5000; }
 
+const MAX_RETRIES = 2;
+
+async function sendWithRetry(api: any, entry: ScheduleEntry, msg: string, imagePath?: string): Promise<void> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (imagePath) {
+        await api.sendMessage({ msg, attachments: imagePath }, entry.zaloId!, ThreadType.User);
+      } else {
+        await api.sendMessage(msg, entry.zaloId!, ThreadType.User);
+      }
+      return;
+    } catch (err: any) {
+      if (attempt === MAX_RETRIES) throw err;
+      await sleep(3000 + attempt * 2000);
+    }
+  }
+}
+
 async function runScheduledBatch() {
   if (!schedule || schedule.status !== "active") return;
 
