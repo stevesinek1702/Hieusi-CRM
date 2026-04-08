@@ -148,3 +148,39 @@ contactRoutes.post("/update", async (c) => {
     return c.json({ ok: false, error: err.message }, 500);
   }
 });
+
+// Bỏ match cho 1 contact (giữ contact nhưng xóa zaloId)
+contactRoutes.post("/unmatch", async (c) => {
+  try {
+    const { index } = await c.req.json();
+    const contacts = getContacts();
+    if (index < 0 || index >= contacts.length) {
+      return c.json({ ok: false, error: "Index không hợp lệ" }, 400);
+    }
+    contacts[index].matched = false;
+    contacts[index].zaloId = undefined;
+    contacts[index].zaloName = undefined;
+    contacts[index].matchScore = 0;
+    setContacts(contacts);
+    const matchedCount = contacts.filter((x) => x.matched).length;
+    return c.json({ ok: true, total: contacts.length, matched: matchedCount });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// Xuất danh bạ ra file .xlsx
+contactRoutes.get("/export", async (c) => {
+  const contacts = getContacts();
+  if (!contacts.length) return c.json({ ok: false, error: "Chưa có danh bạ" }, 400);
+
+  const { exportContactsToXlsx } = await import("../services/contacts");
+  const buffer = exportContactsToXlsx(contacts);
+
+  return new Response(buffer, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": "attachment; filename=danh_ba_zalo.xlsx",
+    },
+  });
+});
