@@ -94,6 +94,7 @@ export async function startStrangerSend(
 
       entry.status = "sent";
       progress.sent++;
+      increment("stranger");
     } catch (err: any) {
       entry.status = "failed";
       entry.error = err.message || "Lỗi";
