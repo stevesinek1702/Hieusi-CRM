@@ -56,6 +56,15 @@ contactRoutes.post("/match", async (c) => {
     const matched = await matchContactsWithFriends(contacts, friends);
     setContacts(matched);
     const matchedCount = matched.filter((x) => x.matched).length;
+    // Log các match có score thấp để debug
+    const lowMatches = matched.filter((x) => x.matched && x.matchScore && x.matchScore < 90);
+    if (lowMatches.length > 0) {
+      console.log(`[Match] ${lowMatches.length} low-score matches:`);
+      for (const lm of lowMatches) {
+        console.log(`  "${lm.tenDanhBa}" → "${lm.zaloName}" (${lm.matchScore}%)`);
+      }
+    }
+    console.log(`[Match] Total: ${matched.length}, Matched: ${matchedCount}, Low: ${lowMatches.length}`);
     return c.json({ ok: true, total: matched.length, matched: matchedCount });
   } catch (err: any) {
     return c.json({ ok: false, error: err.message }, 500);
