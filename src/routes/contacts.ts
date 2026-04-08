@@ -187,6 +187,8 @@ contactRoutes.post("/unmatch-low", async (c) => {
     });
     const removed = before - filtered.length;
     setContacts(filtered);
+    // Tự động lưu file sau khi xóa
+    await Bun.write("./data/contacts_saved.json", JSON.stringify(filtered, null, 2));
     const matchedCount = filtered.filter((x) => x.matched).length;
     return c.json({ ok: true, removed, total: filtered.length, matched: matchedCount });
   } catch (err: any) {
