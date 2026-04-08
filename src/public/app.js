@@ -418,6 +418,13 @@ async function loadSavedContacts() {
   } catch (e) { alert("Lỗi tải"); }
 }
 
+var contactSortOrder = 0; // 0=default, 1=score asc (vàng lên đầu), 2=score desc
+
+function sortByMatch() {
+  contactSortOrder = (contactSortOrder + 1) % 3;
+  loadContactTable();
+}
+
 async function loadContactTable() {
   try {
     var res = await fetch("/api/contacts");
@@ -438,9 +445,29 @@ async function loadContactTable() {
     document.getElementById("btnRematch").style.display = "inline-block";
     document.getElementById("btnUnmatchLow").style.display = "inline-block";
 
+    // Gắn index gốc trước khi sort
+    var contacts = data.contacts.map(function(c, i) { c._idx = i; return c; });
+
+    if (contactSortOrder === 1) {
+      // Score tăng dần: match vàng (thấp) lên đầu
+      contacts.sort(function(a, b) {
+        var sa = a.matched ? (a.matchScore || 100) : 999;
+        var sb = b.matched ? (b.matchScore || 100) : 999;
+        return sa - sb;
+      });
+    } else if (contactSortOrder === 2) {
+      // Score giảm dần: match xanh (cao) lên đầu
+      contacts.sort(function(a, b) {
+        var sa = a.matched ? (a.matchScore || 100) : -1;
+        var sb = b.matched ? (b.matchScore || 100) : -1;
+        return sb - sa;
+      });
+    }
+
     var tbody = document.getElementById("contactTableBody");
-    tbody.innerHTML = data.contacts
-      .map(function (c, i) {
+    tbody.innerHTML = contacts
+      .map(function (c, displayIdx) {
+        var origIdx = c._idx;
         var matchCell = "-";
         if (c.matched) {
           var color = c.matchScore >= 90 ? "#69f0ae" : c.matchScore >= 70 ? "#ffc107" : "#ff9800";
@@ -449,13 +476,13 @@ async function loadContactTable() {
         var labelCell = c.label ? '<span style="padding:2px 6px;border-radius:4px;background:#333;color:#aaa;font-size:0.7rem">' + c.label + '</span>' : '-';
         return (
           "<tr style='border-bottom:1px solid #222'>" +
-          "<td style='padding:6px;color:#666'>" + (i + 1) + "</td>" +
+          "<td style='padding:6px;color:#666'>" + (origIdx + 1) + "</td>" +
           "<td style='padding:6px'>" + c.tenDanhBa + "</td>" +
-          "<td style='padding:6px'><input value='" + escAttr(c.danhXung) + "' onchange='editContact(" + i + ",\"danhXung\",this.value)' style='background:#111;border:1px solid #333;color:#e0e0e0;padding:4px 6px;border-radius:4px;width:70px;font-size:0.8rem' /></td>" +
-          "<td style='padding:6px'><input value='" + escAttr(c.tenGoi) + "' onchange='editContact(" + i + ",\"tenGoi\",this.value)' style='background:#111;border:1px solid #333;color:#e0e0e0;padding:4px 6px;border-radius:4px;width:90px;font-size:0.8rem' /></td>" +
-          "<td style='padding:6px'><input value='" + escAttr(c.label || "") + "' onchange='editContact(" + i + ",\"label\",this.value)' style='background:#111;border:1px solid #333;color:#aaa;padding:4px 6px;border-radius:4px;width:80px;font-size:0.75rem' /></td>" +
+          "<td style='padding:6px'><input value='" + escAttr(c.danhXung) + "' onchange='editContact(" + origIdx + ",\"danhXung\",this.value)' style='background:#111;border:1px solid #333;color:#e0e0e0;padding:4px 6px;border-radius:4px;width:70px;font-size:0.8rem' /></td>" +
+          "<td style='padding:6px'><input value='" + escAttr(c.tenGoi) + "' onchange='editContact(" + origIdx + ",\"tenGoi\",this.value)' style='background:#111;border:1px solid #333;color:#e0e0e0;padding:4px 6px;border-radius:4px;width:90px;font-size:0.8rem' /></td>" +
+          "<td style='padding:6px'><input value='" + escAttr(c.label || "") + "' onchange='editContact(" + origIdx + ",\"label\",this.value)' style='background:#111;border:1px solid #333;color:#aaa;padding:4px 6px;border-radius:4px;width:80px;font-size:0.75rem' /></td>" +
           "<td style='padding:6px'>" + matchCell + "</td>" +
-          "<td style='padding:6px'><button onclick='deleteContact(" + i + ")' class='danger' style='padding:4px 8px;font-size:0.75rem'>✗</button></td>" +
+          "<td style='padding:6px'><button onclick='deleteContact(" + origIdx + ")' class='danger' style='padding:4px 8px;font-size:0.75rem'>✗</button></td>" +
           "</tr>"
         );
       })
