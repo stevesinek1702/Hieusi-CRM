@@ -53,7 +53,7 @@ contactRoutes.post("/match", async (c) => {
       return c.json({ ok: false, error: "Lỗi lấy danh bạ Zalo (thử lại sau vài giây): " + err.message }, 429);
     }
 
-    const matched = matchContactsWithFriends(contacts, friends);
+    const matched = await matchContactsWithFriends(contacts, friends);
     setContacts(matched);
     const matchedCount = matched.filter((x) => x.matched).length;
     return c.json({ ok: true, total: matched.length, matched: matchedCount });
