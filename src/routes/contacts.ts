@@ -27,7 +27,7 @@ contactRoutes.post("/upload", async (c) => {
     // Auto-match with friend list
     try {
       const friends = await getFriendList();
-      const matched = matchContactsWithFriends(parsed, friends);
+      const matched = await matchContactsWithFriends(parsed, friends);
       setContacts(matched);
       const matchedCount = matched.filter((x) => x.matched).length;
       return c.json({ ok: true, total: matched.length, matched: matchedCount });
