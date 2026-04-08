@@ -1,5 +1,6 @@
 import { getApi } from "./zalo";
 import { ThreadType } from "zca-js";
+import { canSend, increment, getRemaining } from "./ratelimit";
 
 export interface StrangerEntry {
   phone: string;
