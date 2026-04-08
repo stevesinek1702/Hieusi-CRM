@@ -119,9 +119,37 @@ function normalizeMatch(str: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "d")
     .replace(/Đ/g, "d")
-    .replace(/[.\-_,]/g, " ")  // dots, dashes → spaces
+    .replace(/[.\-_,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Split into words for word-level matching
+function getWords(str: string): string[] {
+  return normalizeMatch(str).split(" ").filter(w => w.length > 0);
+}
+
+// Count how many words from `search` appear in `target` (in order)
+function wordMatchScore(search: string, target: string): number {
+  const searchWords = getWords(search);
+  const targetWords = getWords(target);
+  if (!searchWords.length || !targetWords.length) return 0;
+
+  let matched = 0;
+  let lastIdx = -1;
+  for (const sw of searchWords) {
+    for (let i = lastIdx + 1; i < targetWords.length; i++) {
+      if (targetWords[i] === sw || targetWords[i].startsWith(sw) || sw.startsWith(targetWords[i])) {
+        matched++;
+        lastIdx = i;
+        break;
+      }
+    }
+  }
+
+  // Score based on how many search words matched
+  const ratio = matched / searchWords.length;
+  return Math.round(ratio * 100);
 }
 
 const MATCH_THRESHOLD = 60;
@@ -134,7 +162,7 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
     alias: f.alias || "",
   }));
 
-  // Build normalized lookup for exact + prefix matching
+  // Build all name entries
   const friendNames: { friend: typeof friendList[0]; raw: string; norm: string }[] = [];
   for (const f of friendList) {
     for (const name of [f.alias, f.displayName, f.zaloName]) {
@@ -145,48 +173,47 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
   }
 
   return contacts.map((c) => {
-    const searchRaw = c.tenDanhBa.trim().toLowerCase();
     const searchNorm = normalizeMatch(c.tenDanhBa);
 
-    // 1. Exact match (raw)
-    for (const fn of friendNames) {
-      if (fn.raw.trim().toLowerCase() === searchRaw) {
-        return { ...c, zaloId: fn.friend.userId, zaloName: fn.raw, matched: true, matchScore: 100 };
-      }
-    }
-
-    // 2. Exact match (normalized - ignoring dots, diacritics)
-    for (const fn of friendNames) {
-      if (fn.norm === searchNorm) {
-        return { ...c, zaloId: fn.friend.userId, zaloName: fn.raw, matched: true, matchScore: 99 };
-      }
-    }
-
-    // 3. Prefix match: alias/name STARTS WITH search term (normalized)
-    let bestPrefix: typeof friendNames[0] | null = null;
-    let bestPrefixLen = 0;
-    for (const fn of friendNames) {
-      if (fn.norm.startsWith(searchNorm) && searchNorm.length > bestPrefixLen) {
-        bestPrefix = fn;
-        bestPrefixLen = searchNorm.length;
-      }
-    }
-    if (bestPrefix && searchNorm.length >= 4) {
-      const ratio = searchNorm.length / bestPrefix.norm.length;
-      return { ...c, zaloId: bestPrefix.friend.userId, zaloName: bestPrefix.raw, matched: true, matchScore: Math.round(90 + ratio * 8) };
-    }
-
-    // 4. Fuzzy match (last resort)
+    // Score all friends and pick the best
     let bestScore = 0;
     let bestFn: typeof friendNames[0] | null = null;
+
     for (const fn of friendNames) {
-      const score = similarity(c.tenDanhBa, fn.raw);
-      if (score > bestScore) { bestScore = score; bestFn = fn; }
+      let score = 0;
+
+      // Exact normalized match
+      if (fn.norm === searchNorm) {
+        score = 100;
+      }
+      // Target contains search (search is substring of alias)
+      else if (fn.norm.includes(searchNorm)) {
+        score = 90 + Math.round((searchNorm.length / fn.norm.length) * 8);
+      }
+      // Search contains target
+      else if (searchNorm.includes(fn.norm)) {
+        score = 85 + Math.round((fn.norm.length / searchNorm.length) * 10);
+      }
+      // Word-level matching (most important for cases like "A Cường 4 tỏi")
+      else {
+        const wordScore = wordMatchScore(c.tenDanhBa, fn.raw);
+        if (wordScore >= 70) {
+          score = Math.round(60 + wordScore * 0.35);
+        } else {
+          // Fallback to character similarity
+          score = similarity(c.tenDanhBa, fn.raw);
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestFn = fn;
+      }
     }
+
     if (bestFn && bestScore >= MATCH_THRESHOLD) {
       return { ...c, zaloId: bestFn.friend.userId, zaloName: bestFn.raw, matched: true, matchScore: bestScore };
     }
-
     return { ...c, matched: false, matchScore: 0 };
   });
 }
