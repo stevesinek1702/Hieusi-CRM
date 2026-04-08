@@ -49,3 +49,67 @@ async function sendWithRetry(api: any, contact: Contact, msg: string, imagePath?
     }
   }
 }
+
+export async function startBulkSend(
+  contacts: Contact[],
+  template: string,
+  imagePath?: string
+) {
+  const api = getApi();
+  if (!api) throw new Error("Chưa đăng nhập Zalo");
+
+  const remaining = getRemaining("bulk");
+  if (remaining <= 0) {
+    progress = { total: 0, sent: 0, failed: 0, skipped: 0, current: "", status: "rate_limited", errors: [] };
+    throw new Error("Đã đạt giới hạn gửi tin hôm nay (80 tin/ngày). Thử lại ngày mai.");
+  }
+
+  const matched = contacts.filter((c) => c.matched && c.zaloId);
+  const toSend = matched.slice(0, remaining); // Chỉ gửi trong giới hạn
+  const skipped = matched.length - toSend.length;
+
+  progress = {
+    total: toSend.length, sent: 0, failed: 0, skipped,
+    current: "", status: "sending", errors: [],
+  };
+
+  if (skipped > 0) {
+    console.log(`[Bulk] Rate limited: gửi ${toSend.length}/${matched.length}, bỏ qua ${skipped}`);
+  }
+
+  for (const contact of toSend) {
+    if (!canSend("bulk")) {
+      progress.status = "rate_limited";
+      progress.skipped += (toSend.length - progress.sent - progress.failed);
+      console.log("[Bulk] Đạt giới hạn giữa chừng, dừng gửi.");
+      break;
+    }
+
+    try {
+      progress.current = contact.tenDanhBa;
+      const msg = renderTemplate(template, contact);
+      await sendWithRetry(api, contact, msg, imagePath);
+      increment("bulk");
+      progress.sent++;
+    } catch (err: any) {
+      progress.failed++;
+      progress.errors.push({
+        name: contact.tenDanhBa,
+        error: err.message || "Unknown error",
+      });
+    }
+
+    // Delay 5-10s between messages
+    if (progress.sent + progress.failed < toSend.length) {
+      await sleep(randomDelay());
+    }
+  }
+
+  if (progress.status !== "rate_limited") {
+    progress.status = "done";
+  }
+  progress.current = "";
+
+  // Log kết quả
+  console.log(`[Bulk] Done: sent=${progress.sent}, failed=${progress.failed}, skipped=${progress.skipped}`);
+}
