@@ -101,7 +101,7 @@ export async function startStrangerSend(
       progress.failed++;
     }
 
-    if (i < entries.length - 1) {
+    if (i < toProcess.length - 1) {
       await sleep(randomDelay());
     }
   }
