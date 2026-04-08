@@ -84,6 +84,7 @@ export async function startAddFriends(entries: AddFriendEntry[], messageTemplate
 
       entry.status = "sent";
       progress.sent++;
+      increment("addfriend");
     } catch (err: any) {
       entry.status = "failed";
       entry.error = err.message || "Lỗi";
