@@ -108,61 +108,6 @@ function normalize(str: string): string {
     .replace(/\s+/g, " ");
 }
 
-// Calculate similarity score between two strings (0-100)
-function similarity(a: string, b: string): number {
-  const na = normalize(a);
-  const nb = normalize(b);
-
-  // Exact match
-  if (na === nb) return 100;
-
-  // One contains the other
-  if (na.includes(nb) || nb.includes(na)) {
-    const ratio = Math.min(na.length, nb.length) / Math.max(na.length, nb.length);
-    return Math.round(70 + ratio * 25); // 70-95
-  }
-
-  // Check if last word(s) match (Vietnamese names: last word = tên gọi)
-  const wordsA = na.split(" ");
-  const wordsB = nb.split(" ");
-  const lastA = wordsA[wordsA.length - 1];
-  const lastB = wordsB[wordsB.length - 1];
-
-  if (lastA === lastB && wordsA.length > 1 && wordsB.length > 1) {
-    // Last name matches, check more overlap
-    const commonWords = wordsA.filter((w) => wordsB.includes(w));
-    const ratio = commonWords.length / Math.max(wordsA.length, wordsB.length);
-    return Math.round(50 + ratio * 40); // 50-90
-  }
-
-  // Levenshtein-based similarity
-  const dist = levenshtein(na, nb);
-  const maxLen = Math.max(na.length, nb.length);
-  if (maxLen === 0) return 100;
-  const score = Math.round((1 - dist / maxLen) * 100);
-  return Math.max(0, score);
-}
-
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-
-  const dp: number[][] = [];
-  for (let i = 0; i <= m; i++) {
-    dp[i] = [i];
-    for (let j = 1; j <= n; j++) {
-      if (i === 0) { dp[0][j] = j; continue; }
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
-      );
-    }
-  }
-  return dp[m][n];
-}
-
 // Normalize for matching: remove diacritics, dots, extra spaces
 function normalizeMatch(str: string): string {
   return str
@@ -182,30 +127,110 @@ function getWords(str: string): string[] {
   return normalizeMatch(str).split(" ").filter(w => w.length > 0);
 }
 
-// Count how many words from `search` appear in `target` (in order)
-function wordMatchScore(search: string, target: string): number {
-  const searchWords = getWords(search);
-  const targetWords = getWords(target);
+const MATCH_THRESHOLD = 80;
+
+/**
+ * Thuật toán match kiểu Zalo:
+ * - Tách tên danh bạ thành các từ (search words)
+ * - Tách tên friend thành các từ (target words)
+ * - Mỗi search word phải khớp với 1 target word (exact hoặc prefix)
+ * - Các target word phải khớp theo đúng thứ tự (không nhảy ngược)
+ * - Score dựa trên: tỷ lệ search words khớp + tỷ lệ ký tự khớp chính xác
+ *
+ * Ví dụ:
+ *   search "a hiep 4757678" vs target "a hiep 4757678 0907260810"
+ *   → "a" khớp "a", "hiep" khớp "hiep", "4757678" khớp "4757678" → 3/3 = 100%
+ *
+ *   search "tran thu trinh" vs target "tra"
+ *   → "tran" vs "tra": "tra" là prefix của "tran"? Không. "tran" startsWith "tra"? Có nhưng chỉ 1/3 từ → thấp
+ */
+function calcMatchScore(searchNorm: string, targetNorm: string): number {
+  // Exact match
+  if (targetNorm === searchNorm) return 100;
+
+  // Full string contains (target chứa toàn bộ search hoặc ngược lại)
+  if (targetNorm.includes(searchNorm)) return 98;
+  if (searchNorm.includes(targetNorm)) {
+    const ratio = targetNorm.length / searchNorm.length;
+    if (ratio >= 0.7) return 95;
+  }
+
+  // Word-based matching (kiểu Zalo search)
+  const searchWords = getWords(searchNorm);
+  const targetWords = getWords(targetNorm);
   if (!searchWords.length || !targetWords.length) return 0;
 
-  let matched = 0;
-  let lastIdx = -1;
+  // Mỗi search word tìm target word khớp (exact hoặc prefix), theo thứ tự
+  let matchedWords = 0;
+  let matchedChars = 0;
+  let totalSearchChars = 0;
+  let lastTargetIdx = -1;
+
   for (const sw of searchWords) {
-    for (let i = lastIdx + 1; i < targetWords.length; i++) {
-      if (targetWords[i] === sw || targetWords[i].startsWith(sw) || sw.startsWith(targetWords[i])) {
-        matched++;
-        lastIdx = i;
+    totalSearchChars += sw.length;
+    let bestIdx = -1;
+    let bestMatchLen = 0;
+
+    for (let ti = lastTargetIdx + 1; ti < targetWords.length; ti++) {
+      const tw = targetWords[ti];
+      if (tw === sw) {
+        // Exact word match
+        bestIdx = ti;
+        bestMatchLen = sw.length;
         break;
       }
+      if (tw.startsWith(sw)) {
+        // Search word là prefix của target word: "hiep" matches "hiep4757678"
+        // Nhưng chỉ khi search word đủ dài (>= 2 ký tự) để tránh match "a" với "abc"
+        if (sw.length >= 2 || sw === tw) {
+          bestIdx = ti;
+          bestMatchLen = sw.length;
+          break;
+        }
+      }
+      if (sw.startsWith(tw)) {
+        // Target word là prefix của search word: "4757678" target, "47576780907" search
+        // Chỉ khi target word đủ dài
+        if (tw.length >= 2) {
+          bestIdx = ti;
+          bestMatchLen = tw.length;
+          break;
+        }
+      }
+    }
+
+    if (bestIdx >= 0) {
+      matchedWords++;
+      matchedChars += bestMatchLen;
+      lastTargetIdx = bestIdx;
     }
   }
 
-  // Score based on how many search words matched
-  const ratio = matched / searchWords.length;
-  return Math.round(ratio * 100);
-}
+  if (matchedWords === 0) return 0;
 
-const MATCH_THRESHOLD = 80; // nâng lên 80 để tránh match nhầm
+  // Tỷ lệ từ khớp
+  const wordRatio = matchedWords / searchWords.length;
+  // Tỷ lệ ký tự khớp
+  const charRatio = totalSearchChars > 0 ? matchedChars / totalSearchChars : 0;
+
+  // Phải khớp ít nhất 50% số từ
+  if (wordRatio < 0.5) return 0;
+
+  // Nếu tất cả search words đều khớp exact
+  if (matchedWords === searchWords.length && matchedChars === totalSearchChars) {
+    // Tính score dựa trên tỷ lệ coverage của target
+    const targetTotalChars = targetWords.reduce((s, w) => s + w.length, 0);
+    const coverage = totalSearchChars / targetTotalChars;
+    if (coverage >= 0.9) return 98;
+    if (coverage >= 0.7) return 95;
+    if (coverage >= 0.5) return 92;
+    return 90;
+  }
+
+  // Score = trung bình giữa word ratio và char ratio, scale 60-89
+  const rawScore = (wordRatio * 0.6 + charRatio * 0.4);
+  return Math.round(60 + rawScore * 29);
+}
 
 export async function matchContactsWithFriends(contacts: Contact[], friends: any[]): Promise<Contact[]> {
   const friendList = friends.map((f: any) => ({
