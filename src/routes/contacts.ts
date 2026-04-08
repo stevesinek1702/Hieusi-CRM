@@ -175,19 +175,13 @@ contactRoutes.post("/unmatch-low", async (c) => {
     const { minScore } = await c.req.json();
     const threshold = minScore || 90;
     const contacts = getContacts();
-    let removed = 0;
-    for (const ct of contacts) {
-      if (ct.matched && ct.matchScore && ct.matchScore < threshold) {
-        ct.matched = false;
-        ct.zaloId = undefined;
-        ct.zaloName = undefined;
-        ct.matchScore = 0;
-        removed++;
-      }
-    }
-    setContacts(contacts);
-    const matchedCount = contacts.filter((x) => x.matched).length;
-    return c.json({ ok: true, removed, total: contacts.length, matched: matchedCount });
+    const before = contacts.length;
+    // Xóa hẳn các contact có match vàng (score < threshold) khỏi danh sách
+    const filtered = contacts.filter((ct) => !(ct.matched && ct.matchScore && ct.matchScore < threshold));
+    const removed = before - filtered.length;
+    setContacts(filtered);
+    const matchedCount = filtered.filter((x) => x.matched).length;
+    return c.json({ ok: true, removed, total: filtered.length, matched: matchedCount });
   } catch (err: any) {
     return c.json({ ok: false, error: err.message }, 500);
   }
