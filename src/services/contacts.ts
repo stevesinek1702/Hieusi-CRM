@@ -130,25 +130,26 @@ function getWords(str: string): string[] {
 const MATCH_THRESHOLD = 80;
 
 /**
- * Thuật toán match kiểu Zalo:
- * - Tách tên danh bạ thành các từ (search words)
- * - Tách tên friend thành các từ (target words)
- * - Mỗi search word phải khớp với 1 target word (exact hoặc prefix)
- * - Các target word phải khớp theo đúng thứ tự (không nhảy ngược)
- * - Score dựa trên: tỷ lệ search words khớp + tỷ lệ ký tự khớp chính xác
+ * Thuật toán match kiểu Zalo search:
+ * - Lấy nguyên chuỗi tenDanhBa, tách thành các từ (search words)
+ * - Lấy tên friend, tách thành các từ (target words)
+ * - Mỗi search word phải tìm thấy trong target words (exact hoặc target word startsWith search word, hoặc ngược lại)
+ * - KHÔNG cần theo thứ tự, chỉ cần TẤT CẢ search words đều có mặt
  *
  * Ví dụ:
- *   search "a hiep 4757678" vs target "a hiep 4757678 0907260810"
- *   → "a" khớp "a", "hiep" khớp "hiep", "4757678" khớp "4757678" → 3/3 = 100%
+ *   search "A. Hiệp 4757678" → words ["a", "hiep", "4757678"]
+ *   target "A. Hiệp 4757678 0907260810" → words ["a", "hiep", "4757678", "0907260810"]
+ *   → "a"✓ "hiep"✓ "4757678"✓ → 3/3 match → score cao
  *
- *   search "tran thu trinh" vs target "tra"
- *   → "tran" vs "tra": "tra" là prefix của "tran"? Không. "tran" startsWith "tra"? Có nhưng chỉ 1/3 từ → thấp
+ *   search "Tran Thu Trinh" → words ["tran", "thu", "trinh"]
+ *   target "Tra" → words ["tra"]
+ *   → "tran" vs "tra": tra startsWith tran? No. tran startsWith tra? Yes nhưng chỉ 1/3 → thấp
  */
 function calcMatchScore(searchNorm: string, targetNorm: string): number {
-  // Exact match
+  // Exact full string match
   if (targetNorm === searchNorm) return 100;
 
-  // Full string contains (target chứa toàn bộ search hoặc ngược lại)
+  // Full string contains
   if (targetNorm.includes(searchNorm)) return 98;
   if (searchNorm.includes(targetNorm)) {
     const ratio = targetNorm.length / searchNorm.length;
@@ -160,76 +161,65 @@ function calcMatchScore(searchNorm: string, targetNorm: string): number {
   const targetWords = getWords(targetNorm);
   if (!searchWords.length || !targetWords.length) return 0;
 
-  // Mỗi search word tìm target word khớp (exact hoặc prefix), theo thứ tự
-  let matchedWords = 0;
-  let matchedChars = 0;
+  let matchedCount = 0;
+  let exactChars = 0;
   let totalSearchChars = 0;
-  let lastTargetIdx = -1;
+  const usedTargetIdx = new Set<number>();
 
   for (const sw of searchWords) {
     totalSearchChars += sw.length;
-    let bestIdx = -1;
-    let bestMatchLen = 0;
+    let found = false;
 
-    for (let ti = lastTargetIdx + 1; ti < targetWords.length; ti++) {
+    for (let ti = 0; ti < targetWords.length; ti++) {
+      if (usedTargetIdx.has(ti)) continue;
       const tw = targetWords[ti];
+
       if (tw === sw) {
         // Exact word match
-        bestIdx = ti;
-        bestMatchLen = sw.length;
+        matchedCount++;
+        exactChars += sw.length;
+        usedTargetIdx.add(ti);
+        found = true;
         break;
       }
-      if (tw.startsWith(sw)) {
-        // Search word là prefix của target word: "hiep" matches "hiep4757678"
-        // Nhưng chỉ khi search word đủ dài (>= 2 ký tự) để tránh match "a" với "abc"
-        if (sw.length >= 2 || sw === tw) {
-          bestIdx = ti;
-          bestMatchLen = sw.length;
-          break;
-        }
+      if (tw.startsWith(sw) && sw.length >= 2) {
+        // Search word là prefix của target word
+        matchedCount++;
+        exactChars += sw.length;
+        usedTargetIdx.add(ti);
+        found = true;
+        break;
       }
-      if (sw.startsWith(tw)) {
-        // Target word là prefix của search word: "4757678" target, "47576780907" search
-        // Chỉ khi target word đủ dài
-        if (tw.length >= 2) {
-          bestIdx = ti;
-          bestMatchLen = tw.length;
-          break;
-        }
+      if (sw.startsWith(tw) && tw.length >= 2) {
+        // Target word là prefix của search word
+        matchedCount++;
+        exactChars += tw.length;
+        usedTargetIdx.add(ti);
+        found = true;
+        break;
       }
-    }
-
-    if (bestIdx >= 0) {
-      matchedWords++;
-      matchedChars += bestMatchLen;
-      lastTargetIdx = bestIdx;
     }
   }
 
-  if (matchedWords === 0) return 0;
+  if (matchedCount === 0) return 0;
 
-  // Tỷ lệ từ khớp
-  const wordRatio = matchedWords / searchWords.length;
-  // Tỷ lệ ký tự khớp
-  const charRatio = totalSearchChars > 0 ? matchedChars / totalSearchChars : 0;
+  const wordRatio = matchedCount / searchWords.length;
 
-  // Phải khớp ít nhất 50% số từ
-  if (wordRatio < 0.5) return 0;
+  // Phải khớp ít nhất 60% số từ search
+  if (wordRatio < 0.6) return 0;
 
-  // Nếu tất cả search words đều khớp exact
-  if (matchedWords === searchWords.length && matchedChars === totalSearchChars) {
-    // Tính score dựa trên tỷ lệ coverage của target
-    const targetTotalChars = targetWords.reduce((s, w) => s + w.length, 0);
-    const coverage = totalSearchChars / targetTotalChars;
-    if (coverage >= 0.9) return 98;
-    if (coverage >= 0.7) return 95;
-    if (coverage >= 0.5) return 92;
+  // Tất cả search words đều khớp
+  if (matchedCount === searchWords.length) {
+    // Tính coverage: bao nhiêu % target words được dùng
+    const targetCoverage = usedTargetIdx.size / targetWords.length;
+    if (wordRatio === 1 && targetCoverage >= 0.8) return 97;
+    if (wordRatio === 1 && targetCoverage >= 0.5) return 94;
     return 90;
   }
 
-  // Score = trung bình giữa word ratio và char ratio, scale 60-89
-  const rawScore = (wordRatio * 0.6 + charRatio * 0.4);
-  return Math.round(60 + rawScore * 29);
+  // Một phần search words khớp
+  const charRatio = totalSearchChars > 0 ? exactChars / totalSearchChars : 0;
+  return Math.round(60 + (wordRatio * 0.6 + charRatio * 0.4) * 25);
 }
 
 export async function matchContactsWithFriends(contacts: Contact[], friends: any[]): Promise<Contact[]> {
