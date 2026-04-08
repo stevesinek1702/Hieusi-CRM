@@ -169,6 +169,30 @@ contactRoutes.post("/unmatch", async (c) => {
   }
 });
 
+// Bỏ match hàng loạt cho các contact có score < threshold
+contactRoutes.post("/unmatch-low", async (c) => {
+  try {
+    const { minScore } = await c.req.json();
+    const threshold = minScore || 90;
+    const contacts = getContacts();
+    let removed = 0;
+    for (const ct of contacts) {
+      if (ct.matched && ct.matchScore && ct.matchScore < threshold) {
+        ct.matched = false;
+        ct.zaloId = undefined;
+        ct.zaloName = undefined;
+        ct.matchScore = 0;
+        removed++;
+      }
+    }
+    setContacts(contacts);
+    const matchedCount = contacts.filter((x) => x.matched).length;
+    return c.json({ ok: true, removed, total: contacts.length, matched: matchedCount });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
 // Xuất danh bạ ra file .xlsx
 contactRoutes.get("/export", async (c) => {
   const contacts = getContacts();
