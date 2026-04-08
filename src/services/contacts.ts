@@ -272,75 +272,24 @@ export async function matchContactsWithFriends(contacts: Contact[], friends: any
   });
 }
 
-// Extract name part vs numeric/code part
-// e.g. "A. Vũ 735903" → name="A Vu", nums="735903"
-// e.g. "Nguyễn Quý 116593 0981339456" → name="Nguyen Quy", nums="116593 0981339456"
-function splitNameAndNumbers(norm: string): { namePart: string; numPart: string } {
-  const words = norm.split(" ");
-  const nameWords: string[] = [];
-  const numWords: string[] = [];
-  for (const w of words) {
-    if (/^\d+$/.test(w)) {
-      numWords.push(w);
-    } else {
-      nameWords.push(w);
-    }
-  }
-  return { namePart: nameWords.join(" "), numPart: numWords.join(" ") };
-}
-
-// Extracted scoring logic for reuse
-function calcMatchScore(searchNorm: string, targetNorm: string, searchRaw: string, targetRaw: string): number {
-  // Exact normalized match
+// Strict scoring: chỉ match khi thực sự chắc chắn, không match lung tung
+function calcMatchScore(searchNorm: string, targetNorm: string): number {
+  // Exact match
   if (targetNorm === searchNorm) return 100;
 
-  // Split both into name vs number parts
-  const search = splitNameAndNumbers(searchNorm);
-  const target = splitNameAndNumbers(targetNorm);
-
-  // If search has numbers, target must also contain those numbers to get high score
-  // e.g. "A. Vũ 735903" should NOT match "A Vũ" (no 735903)
-  if (search.numPart) {
-    const searchNums = search.numPart.split(" ");
-    const targetHasNums = searchNums.some(n => targetNorm.includes(n));
-    if (!targetHasNums) {
-      // Target doesn't have the numbers from search
-      // Only allow match if name parts are very close, but cap score low
-      if (search.namePart === target.namePart) return 75; // below threshold
-      return 0;
-    }
-  }
-
-  // Target contains search
+  // Target chứa toàn bộ search (alias dài hơn nhưng chứa đầy đủ tên danh bạ)
+  // e.g. target="chu tao mbb 0913044884" contains search="chu tao mbb 0913044884"
   if (targetNorm.includes(searchNorm)) {
-    return 90 + Math.round((searchNorm.length / targetNorm.length) * 8);
+    return 95;
   }
 
-  // Search contains target
+  // Search chứa toàn bộ target - CHỈ khi target đủ dài (>= 70% search)
+  // Tránh "a vu" match với "a vu 735903"
   if (searchNorm.includes(targetNorm)) {
     const ratio = targetNorm.length / searchNorm.length;
-    // If target is too short compared to search, penalize heavily
-    if (ratio < 0.5) return Math.round(60 + ratio * 30); // 60-75, below threshold
-    return 85 + Math.round(ratio * 10);
-  }
-
-  // Compare name parts only (ignore numbers for fuzzy matching)
-  if (search.namePart && target.namePart) {
-    if (search.namePart === target.namePart) {
-      // Name parts match exactly, check if numbers also match
-      if (!search.numPart || targetNorm.includes(search.numPart)) return 95;
-      return 75; // name matches but numbers don't → below threshold
-    }
-    if (target.namePart.includes(search.namePart) || search.namePart.includes(target.namePart)) {
-      const ratio = Math.min(search.namePart.length, target.namePart.length) / Math.max(search.namePart.length, target.namePart.length);
-      if (ratio > 0.7) return Math.round(80 + ratio * 10);
-    }
-  }
-
-  // Word-level matching
-  const wordScore = wordMatchScore(searchRaw, targetRaw);
-  if (wordScore >= 80) {
-    return Math.round(60 + wordScore * 0.35);
+    if (ratio >= 0.7) return 90;
+    // Quá ngắn → không match
+    return 0;
   }
 
   return 0;
