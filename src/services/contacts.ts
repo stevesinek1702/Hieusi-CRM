@@ -294,3 +294,19 @@ function calcMatchScore(searchNorm: string, targetNorm: string): number {
 
   return 0;
 }
+
+export function exportContactsToXlsx(contacts: Contact[]): Buffer {
+  const data = contacts.map((c) => ({
+    "Danh bạ Zalo": c.tenDanhBa,
+    "Danh xưng": c.danhXung,
+    "Tên gọi": c.tenGoi,
+    "Label": c.label || "",
+    "Match": c.matched ? (c.zaloName || "✓") : "",
+    "Score": c.matchScore || "",
+    "Zalo ID": c.zaloId || "",
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Danh bạ");
+  return Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+}
