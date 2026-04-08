@@ -177,7 +177,14 @@ contactRoutes.post("/unmatch-low", async (c) => {
     const contacts = getContacts();
     const before = contacts.length;
     // Xóa hẳn các contact có match vàng (score < threshold) khỏi danh sách
-    const filtered = contacts.filter((ct) => !(ct.matched && ct.matchScore && ct.matchScore < threshold));
+    const filtered = contacts.filter((ct) => {
+      if (!ct.matched) return true;
+      const score = Number(ct.matchScore) || 0;
+      // Giữ lại nếu score >= threshold hoặc score = 0 (chưa có score)
+      if (score === 0 || score >= threshold) return true;
+      // Xóa nếu score < threshold
+      return false;
+    });
     const removed = before - filtered.length;
     setContacts(filtered);
     const matchedCount = filtered.filter((x) => x.matched).length;
