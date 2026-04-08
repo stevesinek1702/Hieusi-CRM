@@ -178,6 +178,12 @@ async function runScheduledBatch() {
       break;
     }
 
+    // Check rate limit
+    if (!canSend("bulk")) {
+      console.log("📅 Đạt giới hạn gửi tin hôm nay, dừng lại");
+      break;
+    }
+
     try {
       if (!entry.zaloId) {
         entry.status = "failed";
