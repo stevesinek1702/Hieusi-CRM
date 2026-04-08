@@ -73,7 +73,7 @@ contactRoutes.post("/add", async (c) => {
     // Try match with friend list
     try {
       const friends = await getFriendList();
-      const [matched] = matchContactsWithFriends([newContact], friends);
+      const [matched] = await matchContactsWithFriends([newContact], friends);
       contacts.push({ ...matched, label: label || "" });
     } catch {
       contacts.push(newContact);
