@@ -190,14 +190,11 @@ async function runScheduledBatch() {
         .replace(/\{danh_xung\}/g, entry.danhXung || "")
         .replace(/\{ten\}/g, entry.tenGoi || "");
 
-      if (schedule.imagePath) {
-        await api.sendMessage({ msg, attachments: schedule.imagePath }, entry.zaloId, ThreadType.User);
-      } else {
-        await api.sendMessage(msg, entry.zaloId, ThreadType.User);
-      }
+      await sendWithRetry(api, entry, msg, schedule.imagePath);
 
       entry.status = "sent";
       sent++;
+      increment("bulk");
     } catch (err: any) {
       entry.status = "failed";
       entry.error = err.message || "Lỗi";
