@@ -37,13 +37,25 @@ export async function startStrangerSend(
   const api = getApi();
   if (!api) throw new Error("Chưa đăng nhập Zalo");
 
+  const remaining = getRemaining("stranger");
+  if (remaining <= 0) {
+    throw new Error("Đã đạt giới hạn gửi tin người lạ hôm nay (25/ngày). Thử lại ngày mai.");
+  }
+
+  const toProcess = entries.slice(0, remaining);
+
   progress = {
-    total: entries.length, sent: 0, failed: 0,
+    total: toProcess.length, sent: 0, failed: 0,
     current: "", status: "sending",
-    results: entries.map(e => ({ ...e, status: "pending" as const })),
+    results: toProcess.map(e => ({ ...e, status: "pending" as const })),
   };
 
-  for (let i = 0; i < entries.length; i++) {
+  for (let i = 0; i < toProcess.length; i++) {
+    if (!canSend("stranger")) {
+      console.log("[Stranger] Đạt giới hạn, dừng.");
+      break;
+    }
+
     const entry = progress.results[i];
     try {
       progress.current = entry.phone + (entry.name ? " (" + entry.name + ")" : "");
