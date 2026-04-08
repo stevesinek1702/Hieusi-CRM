@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { existsSync } from "fs";
 
 export interface Contact {
   tenDanhBa: string;
@@ -9,6 +10,58 @@ export interface Contact {
   matched?: boolean;
   matchScore?: number; // 0-100, 100 = exact
   label?: string;      // label/nhóm phân loại
+}
+
+// Saved contacts & stranger/addfriend results as fallback sources
+interface SavedEntry {
+  userId: string;
+  name: string;
+  zaloName?: string;
+}
+
+async function loadSavedSources(): Promise<SavedEntry[]> {
+  const entries: SavedEntry[] = [];
+
+  // 1. contacts_saved.json - danh bạ đã lưu trước đó (có zaloId)
+  try {
+    const f = Bun.file("./data/contacts_saved.json");
+    if (await f.exists()) {
+      const saved: any[] = await f.json();
+      for (const s of saved) {
+        if (s.zaloId && s.tenDanhBa) {
+          entries.push({ userId: s.zaloId, name: s.tenDanhBa, zaloName: s.zaloName || "" });
+        }
+      }
+    }
+  } catch {}
+
+  // 2. addfriend_results.json - kết quả kết bạn (có zaloUid)
+  try {
+    const f = Bun.file("./data/addfriend_results.json");
+    if (await f.exists()) {
+      const results: any[] = await f.json();
+      for (const r of results) {
+        if (r.zaloUid && r.name) {
+          entries.push({ userId: r.zaloUid, name: r.name, zaloName: r.zaloName || "" });
+        }
+      }
+    }
+  } catch {}
+
+  // 3. stranger_results.json - kết quả gửi stranger (có zaloUid)
+  try {
+    const f = Bun.file("./data/stranger_results.json");
+    if (await f.exists()) {
+      const results: any[] = await f.json();
+      for (const r of results) {
+        if (r.zaloUid && r.name) {
+          entries.push({ userId: r.zaloUid, name: r.name, zaloName: r.zaloName || "" });
+        }
+      }
+    }
+  } catch {}
+
+  return entries;
 }
 
 let contacts: Contact[] = [];
