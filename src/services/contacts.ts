@@ -194,15 +194,13 @@ export function matchContactsWithFriends(contacts: Contact[], friends: any[]): C
       else if (searchNorm.includes(fn.norm)) {
         score = 85 + Math.round((fn.norm.length / searchNorm.length) * 10);
       }
-      // Word-level matching (most important for cases like "A Cường 4 tỏi")
+      // Word-level matching
       else {
         const wordScore = wordMatchScore(c.tenDanhBa, fn.raw);
-        if (wordScore >= 70) {
+        if (wordScore >= 80) {
           score = Math.round(60 + wordScore * 0.35);
-        } else {
-          // Fallback to character similarity
-          score = similarity(c.tenDanhBa, fn.raw);
         }
+        // No fuzzy fallback - if words don't match well enough, skip
       }
 
       if (score > bestScore) {
