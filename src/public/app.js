@@ -1085,11 +1085,15 @@ async function unmatchLowScore() {
       body: JSON.stringify({ minScore: 90 }),
     });
     var data = await res.json();
+    console.log("unmatch-low response:", data);
     if (data.ok) {
-      alert("Đã xóa " + data.removed + " contact match vàng");
-      loadContactTable();
-    } else alert(data.error);
-  } catch (e) {}
+      alert("Đã xóa " + data.removed + " contact match vàng. Còn lại: " + data.total);
+      await loadContactTable();
+    } else alert(data.error || "Lỗi không xác định");
+  } catch (e) {
+    console.error("unmatchLowScore error:", e);
+    alert("Lỗi: " + e.message);
+  }
 }
 
 // --- Export contacts to xlsx ---
