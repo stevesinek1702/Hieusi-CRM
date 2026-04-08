@@ -1060,3 +1060,33 @@ async function deleteScheduleAction() {
   document.getElementById("btnSchedResume").style.display = "none";
   document.getElementById("btnSchedDelete").style.display = "none";
 }
+
+// --- Unmatch contact ---
+async function unmatchContact(index) {
+  try {
+    var res = await fetch("/api/contacts/unmatch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index: index }),
+    });
+    var data = await res.json();
+    if (data.ok) loadContactTable();
+    else alert(data.error);
+  } catch (e) {}
+}
+
+// --- Export contacts to xlsx ---
+function exportContacts() {
+  window.location.href = "/api/contacts/export";
+}
+
+// --- Auto-load saved contacts on page load ---
+(async function() {
+  try {
+    var res = await fetch("/api/contacts/load", { method: "POST" });
+    var data = await res.json();
+    if (data.ok && data.total > 0) {
+      loadContactTable();
+    }
+  } catch (e) {}
+})();
