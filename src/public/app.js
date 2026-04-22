@@ -293,32 +293,58 @@ function getFriendsBySelectedLabels() {
 }
 
 async function addLabelContactsToList() {
-  var friends = getFriendsBySelectedLabels();
-  if (!friends.length) { alert("Không có bạn bè nào trong các nhóm đã chọn"); return; }
-
-  // Build userId -> first label name
+  // Collect all userIds from selected labels
+  var allUserIds = new Set();
   var uidLabel = {};
   selectedLabels.forEach(function(labelId) {
     var label = allLabels.find(function(l) { return String(l.id) === labelId; });
     if (label) {
       label.conversations.forEach(function(uid) {
+        allUserIds.add(uid);
         if (!uidLabel[uid]) uidLabel[uid] = label.text;
       });
     }
   });
 
+  if (!allUserIds.size) { alert("Không có người nào trong các nhóm đã chọn"); return; }
+
+  var userIds = Array.from(allUserIds);
+
+  // Get all members (friends + non-friends) from cache or API
+  var members = userIds.map(function(uid) {
+    return labelMembersCache[uid] || allFriends.find(function(f) { return f.userId === uid; }) || null;
+  }).filter(Boolean);
+
+  // If some are missing, fetch them
+  if (members.length < userIds.length) {
+    try {
+      var res = await fetch("/api/zalo/labels/members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds: userIds }),
+      });
+      var data = await res.json();
+      if (data.ok) {
+        data.members.forEach(function(m) { labelMembersCache[m.userId] = m; });
+        members = userIds.map(function(uid) {
+          return labelMembersCache[uid] || { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "" };
+        });
+      }
+    } catch (e) {}
+  }
+
   var added = 0;
-  for (var i = 0; i < friends.length; i++) {
-    var f = friends[i];
-    var labelName = uidLabel[f.userId] || "";
+  for (var i = 0; i < members.length; i++) {
+    var m = members[i];
+    var labelName = uidLabel[m.userId] || "";
     try {
       await fetch("/api/contacts/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenDanhBa: f.displayName || f.zaloName || "",
+          tenDanhBa: m.displayName || m.zaloName || "",
           danhXung: "",
-          tenGoi: f.displayName || f.zaloName || "",
+          tenGoi: m.displayName || m.zaloName || "",
           label: labelName
         }),
       });
