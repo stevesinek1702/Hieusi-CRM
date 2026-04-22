@@ -107,7 +107,7 @@ zaloRoutes.post("/labels/members", async (c) => {
     const results: any[] = [];
     const nonFriendIds: string[] = [];
 
-    for (const uid of userIds) {
+    for (const uid of filteredIds) {
       const alias = aliasMap.get(uid) || "";
       const friend = friendMap.get(uid);
       if (friend) {
