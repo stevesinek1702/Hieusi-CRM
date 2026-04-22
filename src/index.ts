@@ -25,6 +25,7 @@ app.route("/api/messages", messageRoutes);
 app.route("/api/addfriend", addFriendRoutes);
 app.route("/api/stranger", strangerRoutes);
 app.route("/api/schedule", schedulerRoutes);
+app.route("/api/customerdb", customerDbRoutes);
 
 const PORT = 10001;
 
