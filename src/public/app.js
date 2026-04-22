@@ -192,7 +192,7 @@ function renderLabelTags() {
   var total = 0;
   selectedLabels.forEach(function(id) {
     var label = allLabels.find(function(l) { return String(l.id) === id; });
-    if (label) total += label.conversations.length;
+    if (label) total += label.conversations.filter(function(c){return c[0]!=='g'}).length;
   });
 
   var btnAdd = document.getElementById("btnAddFromLabels");
