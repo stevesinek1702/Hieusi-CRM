@@ -206,7 +206,9 @@ function renderLabelTags() {
   }
 }
 
-function toggleLabel(labelId) {
+var labelMembersCache = {}; // cache label members by labelId
+
+async function toggleLabel(labelId) {
   if (!labelId) {
     selectedLabels.clear();
   } else {
@@ -216,19 +218,69 @@ function toggleLabel(labelId) {
   }
   renderLabelTags();
 
-  // Apply cả label filter + search filter
-  var source = selectedLabels.size > 0 ? getFriendsBySelectedLabels() : allFriends;
-  var q = normalizeSearch((document.getElementById("friendSearch").value || "").trim());
-  if (q) {
-    source = source.filter(function(f) {
-      return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
-             normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
-             normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
-             (f.phoneNumber || "").indexOf(q) !== -1;
+  if (selectedLabels.size > 0) {
+    // Collect all userIds from selected labels
+    var allUserIds = new Set();
+    selectedLabels.forEach(function(labelId) {
+      var label = allLabels.find(function(l) { return String(l.id) === labelId; });
+      if (label) label.conversations.forEach(function(uid) { allUserIds.add(uid); });
     });
+    var userIds = Array.from(allUserIds);
+
+    // Check if we need to fetch non-friend profiles
+    var needFetch = userIds.some(function(uid) {
+      return !allFriends.find(function(f) { return f.userId === uid; }) && !labelMembersCache[uid];
+    });
+
+    if (needFetch) {
+      document.getElementById("friendInfo").textContent = "Đang tải thông tin " + userIds.length + " người...";
+      try {
+        var res = await fetch("/api/zalo/labels/members", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userIds: userIds }),
+        });
+        var data = await res.json();
+        if (data.ok) {
+          data.members.forEach(function(m) { labelMembersCache[m.userId] = m; });
+        }
+      } catch (e) {
+        console.error("Fetch label members error:", e);
+      }
+    }
+
+    // Build source from cache
+    var source = userIds.map(function(uid) {
+      return labelMembersCache[uid] || allFriends.find(function(f) { return f.userId === uid; }) || { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "", alias: "", phoneNumber: "", isFriend: false };
+    });
+
+    var q = normalizeSearch((document.getElementById("friendSearch").value || "").trim());
+    if (q) {
+      source = source.filter(function(f) {
+        return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
+               (f.phoneNumber || "").indexOf(q) !== -1;
+      });
+    }
+    renderFriends(source);
+    var friendCount = source.filter(function(f) { return f.isFriend; }).length;
+    var nonFriendCount = source.length - friendCount;
+    document.getElementById("friendInfo").textContent = "Đã chọn: " + source.length + " người (" + friendCount + " bạn bè, " + nonFriendCount + " chưa kết bạn)";
+  } else {
+    var q = normalizeSearch((document.getElementById("friendSearch").value || "").trim());
+    var source = allFriends;
+    if (q) {
+      source = source.filter(function(f) {
+        return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
+               (f.phoneNumber || "").indexOf(q) !== -1;
+      });
+    }
+    renderFriends(source);
+    document.getElementById("friendInfo").textContent = "Tổng bạn bè: " + allFriends.length;
   }
-  renderFriends(source);
-  document.getElementById("friendInfo").textContent = "Đã chọn: " + source.length + " bạn bè";
 }
 
 function getFriendsBySelectedLabels() {
