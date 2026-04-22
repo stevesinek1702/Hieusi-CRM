@@ -254,7 +254,7 @@ async function toggleLabel(labelId) {
       if (labelMembersCache[uid]) return labelMembersCache[uid];
       var fr = allFriends.find(function(f) { return f.userId === uid; });
       if (fr) return { userId: uid, displayName: fr.displayName || "", zaloName: fr.zaloName || "", alias: fr.alias || "", phoneNumber: fr.phoneNumber || "", isFriend: true };
-      return { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "", alias: "", phoneNumber: "", isFriend: false };
+      return { userId: uid, displayName: "ID: " + uid, zaloName: "", alias: "", phoneNumber: "", isFriend: false };
     });
     console.log("[Label] Rendered source:", source.length);
 
