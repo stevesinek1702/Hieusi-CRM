@@ -72,7 +72,10 @@ zaloRoutes.post("/labels/members", async (c) => {
 
     const { userIds } = await c.req.json<{ userIds: string[] }>();
     if (!userIds?.length) return c.json({ ok: false, error: "Không có userId" });
-    console.log("[labels/members] Received", userIds.length, "userIds");
+    
+    // Filter bỏ group conversation IDs (bắt đầu bằng "g")
+    const filteredIds = userIds.filter(id => !id.startsWith("g"));
+    console.log("[labels/members] Received", userIds.length, "ids, filtered to", filteredIds.length, "users (removed", userIds.length - filteredIds.length, "groups)");
 
     // 1. Load toàn bộ alias list (tên danh bạ bạn đã đặt, kể cả non-friends)
     const aliasMap = new Map<string, string>();
