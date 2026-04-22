@@ -64,3 +64,102 @@ customerDbRoutes.get("/labels/export", async (c) => {
       } catch {}
       if (i + 50 < nonFriendIds.length) await new Promise(r => setTimeout(r, 500));
     }
+
+    // 6. Load existing customer DB for pre-filling Xưng hô + Tên
+    const existingDb = await loadCustomerDb();
+    const dbMap = new Map<string, CustomerEntry>();
+    for (const e of existingDb) {
+      if (e.userId) dbMap.set(e.userId, e);
+    }
+
+    // 7. Build entries
+    const entries: CustomerEntry[] = allUserIds.map(uid => {
+      const alias = aliasMap.get(uid) || "";
+      const friend = friendMap.get(uid);
+      const profile = profileMap.get(uid);
+      const isFriend = !!friend;
+      const existing = dbMap.get(uid);
+
+      const danhBaZalo = alias || friend?.displayName || friend?.alias || (profile as any)?.displayName || (profile as any)?.zaloName || "";
+      const tenZalo = friend?.zaloName || (profile as any)?.zaloName || (profile as any)?.zalo_name || "";
+      const label = uidLabels.get(uid) || "";
+
+      return {
+        danhBaZalo,
+        danhXung: existing?.danhXung || "",
+        tenGoi: existing?.tenGoi || "",
+        tenZalo,
+        userId: uid,
+        label,
+        isFriend,
+      };
+    });
+
+    // 8. Export to xlsx
+    const buffer = exportCustomerDbToXlsx(entries);
+    return new Response(buffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": "attachment; filename=all_labels_customers.xlsx",
+      },
+    });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// Import Excel đã fix tay → merge vào Customer DB
+customerDbRoutes.post("/import", async (c) => {
+  try {
+    const formData = await c.req.formData();
+    const file = formData.get("file") as File;
+    if (!file) return c.json({ ok: false, error: "No file" }, 400);
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const entries = parseCustomerFile(buffer);
+    const result = mergeIntoDb(entries);
+    await saveCustomerDb();
+
+    return c.json({ ok: true, ...result, total: getCustomerDb().length });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
+// Lưu DB hiện tại
+customerDbRoutes.post("/save", async (c) => {
+  const count = await saveCustomerDb();
+  return c.json({ ok: true, saved: count });
+});
+
+// Load DB từ file
+customerDbRoutes.post("/load", async (c) => {
+  const db = await loadCustomerDb();
+  return c.json({ ok: true, total: db.length });
+});
+
+// Xem DB
+customerDbRoutes.get("/", (c) => {
+  const db = getCustomerDb();
+  return c.json({ ok: true, total: db.length, entries: db });
+});
+
+// Export DB ra xlsx
+customerDbRoutes.get("/export", (c) => {
+  const db = getCustomerDb();
+  if (!db.length) return c.json({ ok: false, error: "DB trống" }, 400);
+  const buffer = exportCustomerDbToXlsx(db);
+  return new Response(buffer, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": "attachment; filename=customer_db.xlsx",
+    },
+  });
+});
+
+// Xóa toàn bộ DB
+customerDbRoutes.post("/clear", async (c) => {
+  setCustomerDb([]);
+  await saveCustomerDb();
+  return c.json({ ok: true });
+});
