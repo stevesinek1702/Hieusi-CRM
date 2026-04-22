@@ -74,25 +74,45 @@ zaloRoutes.post("/labels/members", async (c) => {
     if (!userIds?.length) return c.json({ ok: false, error: "Không có userId" });
     console.log("[labels/members] Received", userIds.length, "userIds");
 
-    // Lấy danh sách bạn bè để biết ai đã là bạn
+    // 1. Load toàn bộ alias list (tên danh bạ bạn đã đặt, kể cả non-friends)
+    const aliasMap = new Map<string, string>();
+    try {
+      let aliasPage = 1;
+      while (true) {
+        const aliasData = await api.getAliasList(200, aliasPage);
+        if (!aliasData?.items?.length) break;
+        for (const a of aliasData.items) {
+          if (a.alias) aliasMap.set(a.userId, a.alias);
+        }
+        if (aliasData.items.length < 200) break;
+        aliasPage++;
+        await new Promise(r => setTimeout(r, 300));
+      }
+      console.log("[labels/members] Loaded", aliasMap.size, "aliases");
+    } catch (err: any) {
+      console.log("⚠️ Alias load error:", err.message);
+    }
+
+    // 2. Lấy danh sách bạn bè
     const friends = await getFriendList();
     const friendMap = new Map<string, any>();
     for (const f of friends) {
       friendMap.set(f.userId, f);
     }
 
-    // Tách: bạn bè lấy từ cache, không phải bạn bè gọi getUserInfo
+    // 3. Tách: bạn bè vs không phải bạn bè
     const results: any[] = [];
     const nonFriendIds: string[] = [];
 
     for (const uid of userIds) {
+      const alias = aliasMap.get(uid) || "";
       const friend = friendMap.get(uid);
       if (friend) {
         results.push({
           userId: uid,
-          displayName: friend.displayName || "",
+          displayName: alias || friend.displayName || friend.alias || "",
           zaloName: friend.zaloName || "",
-          alias: friend.alias || "",
+          alias: alias || friend.alias || "",
           phoneNumber: friend.phoneNumber || "",
           isFriend: true,
         });
@@ -101,97 +121,44 @@ zaloRoutes.post("/labels/members", async (c) => {
       }
     }
 
-    // Gọi getUserInfo cho những người chưa là bạn bè (batch 50)
-    const foundUids = new Set<string>();
+    // 4. Gọi getUserInfo cho non-friends (batch 50) để lấy zaloName
+    const profileMap = new Map<string, any>();
     for (let i = 0; i < nonFriendIds.length; i += 50) {
       const batch = nonFriendIds.slice(i, i + 50);
       try {
         const info = await api.getUserInfo(batch);
-        console.log("[labels/members] getUserInfo batch", i, "changed:", Object.keys(info?.changed_profiles || {}).length, "unchanged:", Object.keys(info?.unchanged_profiles || {}).length);
-
-        // Lấy từ changed_profiles
-        if (info?.changed_profiles) {
-          for (const [uid, profile] of Object.entries(info.changed_profiles)) {
-            foundUids.add(uid);
-            results.push({
-              userId: uid,
-              displayName: (profile as any).displayName || (profile as any).zaloName || "",
-              zaloName: (profile as any).zaloName || "",
-              alias: "",
-              phoneNumber: (profile as any).phoneNumber || "",
-              isFriend: false,
-            });
-          }
+        for (const [uid, profile] of Object.entries(info?.changed_profiles || {})) {
+          profileMap.set(uid, profile);
         }
-
-        // Lấy từ unchanged_profiles (có thể cũng chứa profile data)
-        if (info?.unchanged_profiles) {
-          for (const [uid, profile] of Object.entries(info.unchanged_profiles)) {
-            if (!foundUids.has(uid)) {
-              foundUids.add(uid);
-              results.push({
-                userId: uid,
-                displayName: (profile as any)?.displayName || (profile as any)?.zaloName || (profile as any)?.display_name || (profile as any)?.zalo_name || "",
-                zaloName: (profile as any)?.zaloName || (profile as any)?.zalo_name || "",
-                alias: "",
-                phoneNumber: (profile as any)?.phoneNumber || "",
-                isFriend: false,
-              });
-            }
-          }
+        for (const [uid, profile] of Object.entries(info?.unchanged_profiles || {})) {
+          if (!profileMap.has(uid)) profileMap.set(uid, profile);
         }
       } catch (err: any) {
         console.log("⚠️ getUserInfo batch error:", err.message);
       }
-      // Delay giữa các batch
       if (i + 50 < nonFriendIds.length) {
         await new Promise(r => setTimeout(r, 500));
       }
     }
 
-    // Những userId không tìm thấy (có thể là group conversation) → gọi từng cái
+    // 5. Build results cho non-friends
     for (const uid of nonFriendIds) {
-      if (!foundUids.has(uid)) {
-        try {
-          const info = await api.getUserInfo(uid);
-          const profile = info?.changed_profiles?.[uid] || info?.unchanged_profiles?.[uid];
-          if (profile) {
-            foundUids.add(uid);
-            results.push({
-              userId: uid,
-              displayName: (profile as any).displayName || (profile as any).zaloName || (profile as any).display_name || (profile as any).zalo_name || "",
-              zaloName: (profile as any).zaloName || (profile as any).zalo_name || "",
-              alias: "",
-              phoneNumber: (profile as any).phoneNumber || "",
-              isFriend: false,
-            });
-          } else {
-            console.log("[labels/members] No profile for uid:", uid, "response:", JSON.stringify(info).slice(0, 200));
-            results.push({
-              userId: uid,
-              displayName: "",
-              zaloName: "",
-              alias: "",
-              phoneNumber: "",
-              isFriend: false,
-            });
-          }
-        } catch (err: any) {
-          console.log("[labels/members] Single getUserInfo error for", uid, ":", err.message);
-          results.push({
-            userId: uid,
-            displayName: "",
-            zaloName: "",
-            alias: "",
-            phoneNumber: "",
-            isFriend: false,
-          });
-        }
-        await new Promise(r => setTimeout(r, 300));
-      }
+      const alias = aliasMap.get(uid) || "";
+      const profile = profileMap.get(uid);
+      const zaloName = (profile as any)?.zaloName || (profile as any)?.zalo_name || (profile as any)?.displayName || (profile as any)?.display_name || "";
+      const phone = (profile as any)?.phoneNumber || "";
+
+      results.push({
+        userId: uid,
+        displayName: alias || zaloName || "",
+        zaloName: zaloName,
+        alias: alias,
+        phoneNumber: phone,
+        isFriend: false,
+      });
     }
 
-    console.log("[labels/members] Results:", results.length, "friends:", results.filter(r => r.isFriend).length, "non-friends:", results.filter(r => !r.isFriend).length);
+    console.log("[labels/members] Results:", results.length, "friends:", results.filter(r => r.isFriend).length, "non-friends:", results.filter(r => !r.isFriend).length, "with alias:", results.filter(r => r.alias).length);
     return c.json({ ok: true, members: results, total: results.length });
   } catch (err: any) {
     return c.json({ ok: false, error: err.message }, 500);
