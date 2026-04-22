@@ -185,7 +185,7 @@ function renderLabelTags() {
     allLabels.map(function(l) {
       var active = selectedLabels.has(String(l.id));
       return '<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:0.75rem;cursor:pointer;background:' + (active ? '#1a3a5c' : '#222') + ';color:' + (active ? '#4fc3f7' : '#ccc') + ';margin:2px;border:1px solid ' + (active ? '#00a8ff' : '#444') + '" onclick="event.preventDefault();toggleLabel(\'' + l.id + '\')"><input type="checkbox" ' + (active ? 'checked' : '') + ' style="accent-color:#00a8ff;pointer-events:none" readonly> ' +
-        (l.emoji || '') + ' ' + l.text + ' (' + l.conversations.length + ')</label>';
+        (l.emoji || '') + ' ' + l.text + ' (' + l.conversations.filter(function(c){return c[0]!=='g'}).length + ')</label>';
     }).join("");
 
   // Update selected info
