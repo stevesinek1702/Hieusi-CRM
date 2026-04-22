@@ -256,6 +256,48 @@ textarea{min-height:80px;resize:vertical}
     <div id="schedLog" style="font-size:.75rem;color:#666;margin-top:4px"></div>
   </div>
 
+  <!-- TAB 5: Data KH -->
+  <div id="panelDb" class="tab-panel" style="display:none">
+    <h2>📁 Database Khách Hàng</h2>
+    <p class="help-text">Lưu trữ Xưng hô + Tên gọi cho từng khách hàng. Khi gửi tin, hệ thống tự match để lấy thông tin này.</p>
+
+    <div style="margin:8px 0;padding:10px;background:#111;border-radius:8px;border:1px solid #333">
+      <p style="color:#4fc3f7;font-size:.85rem;font-weight:bold;margin-bottom:6px">📥 Bước 1: Xuất danh sách từ Labels</p>
+      <p class="help-text">Xuất tất cả người trong các Label ra file Excel. Bạn fix tay cột "Xưng hô" và "Tên gọi" rồi import lại.</p>
+      <button onclick="exportAllLabels()" style="background:#ff9800;margin-top:4px">📥 Xuất tất cả Label ra Excel</button>
+    </div>
+
+    <div style="margin:8px 0;padding:10px;background:#111;border-radius:8px;border:1px solid #333">
+      <p style="color:#4fc3f7;font-size:.85rem;font-weight:bold;margin-bottom:6px">📤 Bước 2: Import file đã fix</p>
+      <p class="help-text">Upload file Excel đã fix Xưng hô + Tên gọi. Hệ thống sẽ merge vào database.</p>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">
+        <input type="file" id="customerDbFile" accept=".csv,.xlsx,.xls" style="flex:1;min-width:180px;margin:0" />
+        <button onclick="importCustomerDb()" style="background:#4caf50">📤 Import</button>
+      </div>
+      <div id="dbImportStatus" style="color:#999;font-size:.78rem;margin-top:4px"></div>
+    </div>
+
+    <div style="margin:8px 0;padding:10px;background:#111;border-radius:8px;border:1px solid #333">
+      <p style="color:#4fc3f7;font-size:.85rem;font-weight:bold;margin-bottom:6px">💾 Quản lý Database</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="saveCustomerDb()" style="background:#4caf50">💾 Lưu DB</button>
+        <button onclick="loadCustomerDb()">📂 Tải DB</button>
+        <button onclick="exportCustomerDb()" style="background:#ff9800">📥 Xuất DB (.xlsx)</button>
+        <button onclick="clearCustomerDb()" class="danger">🗑 Xóa DB</button>
+      </div>
+      <div id="dbInfo" style="color:#999;font-size:.78rem;margin-top:4px"></div>
+    </div>
+
+    <div id="dbTableWrap" style="display:none;margin-top:8px;max-height:300px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="border-bottom:1px solid #333;color:#999;text-align:left">
+          <th style="padding:4px 5px">#</th><th style="padding:4px 5px">Danh bạ Zalo</th><th style="padding:4px 5px">Xưng hô</th><th style="padding:4px 5px">Tên gọi</th><th style="padding:4px 5px">Tên Zalo</th><th style="padding:4px 5px">Label</th><th style="padding:4px 5px">Bạn bè</th>
+        </tr></thead>
+        <tbody id="dbTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 <script src="/public/app.js?v=34"></script>
 </body>
