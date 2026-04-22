@@ -1275,3 +1275,90 @@ function exportContacts() {
     }
   } catch (e) {}
 })();
+
+// --- Customer DB ---
+function exportAllLabels() {
+  window.location.href = "/api/customerdb/labels/export";
+}
+
+async function importCustomerDb() {
+  var input = document.getElementById("customerDbFile");
+  if (!input.files.length) { alert("Chọn file trước"); return; }
+  var formData = new FormData();
+  formData.append("file", input.files[0]);
+  var statusEl = document.getElementById("dbImportStatus");
+  statusEl.textContent = "Đang import...";
+  try {
+    var res = await fetch("/api/customerdb/import", { method: "POST", body: formData });
+    var data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = "✅ Import thành công: " + data.added + " thêm mới, " + data.updated + " cập nhật. Tổng: " + data.total;
+      loadCustomerDbTable();
+    } else {
+      statusEl.textContent = "❌ " + (data.error || "Lỗi");
+    }
+  } catch (e) {
+    statusEl.textContent = "❌ Lỗi upload";
+  }
+}
+
+async function saveCustomerDb() {
+  try {
+    var res = await fetch("/api/customerdb/save", { method: "POST" });
+    var data = await res.json();
+    if (data.ok) alert("Đã lưu " + data.saved + " khách hàng vào database");
+    else alert(data.error);
+  } catch (e) { alert("Lỗi lưu"); }
+}
+
+async function loadCustomerDb() {
+  try {
+    var res = await fetch("/api/customerdb/load", { method: "POST" });
+    var data = await res.json();
+    if (data.ok) {
+      document.getElementById("dbInfo").textContent = "Đã tải " + data.total + " khách hàng";
+      loadCustomerDbTable();
+    } else alert(data.error);
+  } catch (e) { alert("Lỗi tải"); }
+}
+
+function exportCustomerDb() {
+  window.location.href = "/api/customerdb/export";
+}
+
+async function clearCustomerDb() {
+  if (!confirm("Xóa toàn bộ database khách hàng?")) return;
+  try {
+    var res = await fetch("/api/customerdb/clear", { method: "POST" });
+    var data = await res.json();
+    if (data.ok) {
+      document.getElementById("dbInfo").textContent = "Đã xóa";
+      document.getElementById("dbTableWrap").style.display = "none";
+    }
+  } catch (e) {}
+}
+
+async function loadCustomerDbTable() {
+  try {
+    var res = await fetch("/api/customerdb");
+    var data = await res.json();
+    if (!data.ok || !data.entries.length) {
+      document.getElementById("dbInfo").textContent = "Database: " + (data.total || 0) + " khách hàng";
+      document.getElementById("dbTableWrap").style.display = "none";
+      return;
+    }
+    document.getElementById("dbInfo").textContent = "Database: " + data.total + " khách hàng";
+    document.getElementById("dbTableWrap").style.display = "block";
+    document.getElementById("dbTableBody").innerHTML = data.entries.map(function(e, i) {
+      var friendBadge = e.isFriend ? '<span style="color:#69f0ae">✓</span>' : '<span style="color:#ff9800">✗</span>';
+      return "<tr style='border-bottom:1px solid #222'>" +
+        "<td style='padding:3px 5px;color:#666'>" + (i+1) + "</td>" +
+        "<td style='padding:3px 5px'>" + (e.danhBaZalo || "-") + "</td>" +
+        "<td style='padding:3px 5px;color:#4fc3f7'>" + (e.danhXung || "-") + "</td>" +
+        "<td style='padding:3px 5px;color:#4fc3f7'>" + (e.tenGoi || "-") + "</td>" +
+        "<td style='padding:3px 5px;color:#999'>" + (e.tenZalo || "-") + "</td>" +
+        "<td style='padding:3px 5px;color:#888'>" + (e.label || "-") + "</td>" +
+        "<td style='padding:3px 5px'>" + friendBadge + "</td></tr>";
+    }).join("");
+  } catch (e) {}
+}
