@@ -265,7 +265,16 @@ export async function matchContactsWithFriends(contacts: Contact[], friends: any
     }
 
     if (bestFn && bestScore >= MATCH_THRESHOLD) {
-      return { ...c, zaloId: bestFn.friend.userId, zaloName: bestFn.raw, matched: true, matchScore: bestScore };
+      const result = { ...c, zaloId: bestFn.friend.userId, zaloName: bestFn.raw, matched: true, matchScore: bestScore };
+      // Lookup Xưng hô + Tên từ Customer DB nếu chưa có
+      if (!result.danhXung || !result.tenGoi) {
+        const dbLookup = lookupCustomer(bestFn.friend.userId, c.tenDanhBa);
+        if (dbLookup) {
+          if (!result.danhXung && dbLookup.danhXung) result.danhXung = dbLookup.danhXung;
+          if (!result.tenGoi && dbLookup.tenGoi) result.tenGoi = dbLookup.tenGoi;
+        }
+      }
+      return result;
     }
 
     // 2. Fallback: match from saved sources (contacts_saved, addfriend, stranger)
@@ -281,7 +290,15 @@ export async function matchContactsWithFriends(contacts: Contact[], friends: any
     }
 
     if (bestSaved && bestSavedScore >= MATCH_THRESHOLD) {
-      return { ...c, zaloId: bestSaved.entry.userId, zaloName: bestSaved.raw, matched: true, matchScore: bestSavedScore };
+      const result = { ...c, zaloId: bestSaved.entry.userId, zaloName: bestSaved.raw, matched: true, matchScore: bestSavedScore };
+      if (!result.danhXung || !result.tenGoi) {
+        const dbLookup = lookupCustomer(bestSaved.entry.userId, c.tenDanhBa);
+        if (dbLookup) {
+          if (!result.danhXung && dbLookup.danhXung) result.danhXung = dbLookup.danhXung;
+          if (!result.tenGoi && dbLookup.tenGoi) result.tenGoi = dbLookup.tenGoi;
+        }
+      }
+      return result;
     }
 
     return { ...c, matched: false, matchScore: 0 };
