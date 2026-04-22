@@ -223,7 +223,7 @@ async function toggleLabel(labelId) {
     var allUserIds = new Set();
     selectedLabels.forEach(function(lid) {
       var label = allLabels.find(function(l) { return String(l.id) === lid; });
-      if (label) label.conversations.forEach(function(uid) { allUserIds.add(uid); });
+      if (label) label.conversations.forEach(function(uid) { if (uid[0] !== 'g') allUserIds.add(uid); });
     });
     var userIds = Array.from(allUserIds);
     console.log("[Label] Selected userIds:", userIds.length, userIds.slice(0, 5));
