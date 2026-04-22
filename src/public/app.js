@@ -206,7 +206,7 @@ function renderLabelTags() {
   }
 }
 
-var labelMembersCache = {}; // cache label members by labelId
+var labelMembersCache = {}; // cache label members by userId
 
 async function toggleLabel(labelId) {
   if (!labelId) {
@@ -221,18 +221,17 @@ async function toggleLabel(labelId) {
   if (selectedLabels.size > 0) {
     // Collect all userIds from selected labels
     var allUserIds = new Set();
-    selectedLabels.forEach(function(labelId) {
-      var label = allLabels.find(function(l) { return String(l.id) === labelId; });
+    selectedLabels.forEach(function(lid) {
+      var label = allLabels.find(function(l) { return String(l.id) === lid; });
       if (label) label.conversations.forEach(function(uid) { allUserIds.add(uid); });
     });
     var userIds = Array.from(allUserIds);
+    console.log("[Label] Selected userIds:", userIds.length, userIds.slice(0, 5));
 
-    // Check if we need to fetch non-friend profiles
-    var needFetch = userIds.some(function(uid) {
-      return !allFriends.find(function(f) { return f.userId === uid; }) && !labelMembersCache[uid];
-    });
+    // Kiểm tra xem tất cả đã có trong cache chưa
+    var allCached = userIds.every(function(uid) { return !!labelMembersCache[uid]; });
 
-    if (needFetch) {
+    if (!allCached) {
       document.getElementById("friendInfo").textContent = "Đang tải thông tin " + userIds.length + " người...";
       try {
         var res = await fetch("/api/zalo/labels/members", {
@@ -241,18 +240,23 @@ async function toggleLabel(labelId) {
           body: JSON.stringify({ userIds: userIds }),
         });
         var data = await res.json();
-        if (data.ok) {
+        console.log("[Label] API response:", data.ok, "members:", data.members ? data.members.length : 0);
+        if (data.ok && data.members) {
           data.members.forEach(function(m) { labelMembersCache[m.userId] = m; });
         }
       } catch (e) {
-        console.error("Fetch label members error:", e);
+        console.error("[Label] Fetch error:", e);
       }
     }
 
-    // Build source from cache
+    // Build source from cache, fallback to allFriends, then placeholder
     var source = userIds.map(function(uid) {
-      return labelMembersCache[uid] || allFriends.find(function(f) { return f.userId === uid; }) || { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "", alias: "", phoneNumber: "", isFriend: false };
+      if (labelMembersCache[uid]) return labelMembersCache[uid];
+      var fr = allFriends.find(function(f) { return f.userId === uid; });
+      if (fr) return { userId: uid, displayName: fr.displayName || "", zaloName: fr.zaloName || "", alias: fr.alias || "", phoneNumber: fr.phoneNumber || "", isFriend: true };
+      return { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "", alias: "", phoneNumber: "", isFriend: false };
     });
+    console.log("[Label] Rendered source:", source.length);
 
     var q = normalizeSearch((document.getElementById("friendSearch").value || "").trim());
     if (q) {
@@ -264,7 +268,7 @@ async function toggleLabel(labelId) {
       });
     }
     renderFriends(source);
-    var friendCount = source.filter(function(f) { return f.isFriend; }).length;
+    var friendCount = source.filter(function(f) { return f.isFriend === true; }).length;
     var nonFriendCount = source.length - friendCount;
     document.getElementById("friendInfo").textContent = "Đã chọn: " + source.length + " người (" + friendCount + " bạn bè, " + nonFriendCount + " chưa kết bạn)";
   } else {
