@@ -304,8 +304,10 @@ async function addLabelContactsToList() {
     var label = allLabels.find(function(l) { return String(l.id) === labelId; });
     if (label) {
       label.conversations.forEach(function(uid) {
-        allUserIds.add(uid);
-        if (!uidLabel[uid]) uidLabel[uid] = label.text;
+        if (uid[0] !== 'g') {
+          allUserIds.add(uid);
+          if (!uidLabel[uid]) uidLabel[uid] = label.text;
+        }
       });
     }
   });
