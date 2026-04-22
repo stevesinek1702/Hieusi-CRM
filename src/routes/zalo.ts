@@ -64,6 +64,87 @@ zaloRoutes.get("/labels", async (c) => {
   }
 });
 
+// Lấy profile tất cả members trong các label đã chọn (kể cả không phải bạn bè)
+zaloRoutes.post("/labels/members", async (c) => {
+  try {
+    const api = getApi();
+    if (!api) return c.json({ ok: false, error: "Chưa đăng nhập" }, 401);
+
+    const { userIds } = await c.req.json<{ userIds: string[] }>();
+    if (!userIds?.length) return c.json({ ok: false, error: "Không có userId" });
+
+    // Lấy danh sách bạn bè để biết ai đã là bạn
+    const friends = await getFriendList();
+    const friendMap = new Map<string, any>();
+    for (const f of friends) {
+      friendMap.set(f.userId, f);
+    }
+
+    // Tách: bạn bè lấy từ cache, không phải bạn bè gọi getUserInfo
+    const results: any[] = [];
+    const nonFriendIds: string[] = [];
+
+    for (const uid of userIds) {
+      const friend = friendMap.get(uid);
+      if (friend) {
+        results.push({
+          userId: uid,
+          displayName: friend.displayName || "",
+          zaloName: friend.zaloName || "",
+          alias: friend.alias || "",
+          phoneNumber: friend.phoneNumber || "",
+          isFriend: true,
+        });
+      } else {
+        nonFriendIds.push(uid);
+      }
+    }
+
+    // Gọi getUserInfo cho những người chưa là bạn bè (batch 50)
+    for (let i = 0; i < nonFriendIds.length; i += 50) {
+      const batch = nonFriendIds.slice(i, i + 50);
+      try {
+        const info = await api.getUserInfo(batch);
+        if (info?.changed_profiles) {
+          for (const [uid, profile] of Object.entries(info.changed_profiles)) {
+            results.push({
+              userId: uid,
+              displayName: (profile as any).displayName || "",
+              zaloName: (profile as any).zaloName || "",
+              alias: "",
+              phoneNumber: (profile as any).phoneNumber || "",
+              isFriend: false,
+            });
+          }
+        }
+      } catch (err: any) {
+        console.log("⚠️ getUserInfo batch error:", err.message);
+        // Thêm placeholder cho các userId lỗi
+        for (const uid of batch) {
+          if (!results.find(r => r.userId === uid)) {
+            results.push({
+              userId: uid,
+              displayName: "User " + uid.slice(-6),
+              zaloName: "",
+              alias: "",
+              phoneNumber: "",
+              isFriend: false,
+            });
+          }
+        }
+      }
+      // Delay giữa các batch
+      if (i + 50 < nonFriendIds.length) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+
+    return c.json({ ok: true, members: results, total: results.length });
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
+
 zaloRoutes.post("/logout", (c) => {
   logout();
   return c.json({ ok: true });
