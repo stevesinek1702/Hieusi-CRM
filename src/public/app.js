@@ -13,12 +13,19 @@ function switchTab(tab) {
 
   // Highlight active tab button
   btns.forEach(function(b) {
-    if (b.textContent.toLowerCase().indexOf(
-      tab === "send" ? "gửi tin hàng" : tab === "addfriend" ? "kết bạn" : "người lạ"
-    ) !== -1) {
+    var text = b.textContent.toLowerCase();
+    if (
+      (tab === "send" && text.indexOf("gửi tin hàng") !== -1) ||
+      (tab === "addfriend" && text.indexOf("kết bạn") !== -1) ||
+      (tab === "stranger" && text.indexOf("người lạ") !== -1) ||
+      (tab === "care" && text.indexOf("chăm sóc") !== -1) ||
+      (tab === "db" && text.indexOf("data kh") !== -1)
+    ) {
       b.classList.add("active");
     }
   });
+
+  if (tab === "db") loadCustomerDbTable();
 }
 
 startPolling();
