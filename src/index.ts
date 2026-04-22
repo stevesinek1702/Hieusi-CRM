@@ -7,8 +7,10 @@ import { addFriendRoutes } from "./routes/addfriend";
 import { strangerRoutes } from "./routes/stranger";
 import { schedulerRoutes } from "./routes/scheduler";
 import { dashboardRoute } from "./routes/dashboard";
+import { customerDbRoutes } from "./routes/customerdb";
 import { tryAutoLogin, loginQR } from "./services/zalo";
 import { loadSchedule } from "./services/scheduler";
+import { loadCustomerDb } from "./services/customerdb";
 
 const app = new Hono();
 
