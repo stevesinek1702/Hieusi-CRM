@@ -102,15 +102,20 @@ zaloRoutes.post("/labels/members", async (c) => {
     }
 
     // Gọi getUserInfo cho những người chưa là bạn bè (batch 50)
+    const foundUids = new Set<string>();
     for (let i = 0; i < nonFriendIds.length; i += 50) {
       const batch = nonFriendIds.slice(i, i + 50);
       try {
         const info = await api.getUserInfo(batch);
+        console.log("[labels/members] getUserInfo batch", i, "changed:", Object.keys(info?.changed_profiles || {}).length, "unchanged:", Object.keys(info?.unchanged_profiles || {}).length);
+
+        // Lấy từ changed_profiles
         if (info?.changed_profiles) {
           for (const [uid, profile] of Object.entries(info.changed_profiles)) {
+            foundUids.add(uid);
             results.push({
               userId: uid,
-              displayName: (profile as any).displayName || "",
+              displayName: (profile as any).displayName || (profile as any).zaloName || "",
               zaloName: (profile as any).zaloName || "",
               alias: "",
               phoneNumber: (profile as any).phoneNumber || "",
@@ -118,25 +123,71 @@ zaloRoutes.post("/labels/members", async (c) => {
             });
           }
         }
+
+        // Lấy từ unchanged_profiles (có thể cũng chứa profile data)
+        if (info?.unchanged_profiles) {
+          for (const [uid, profile] of Object.entries(info.unchanged_profiles)) {
+            if (!foundUids.has(uid)) {
+              foundUids.add(uid);
+              results.push({
+                userId: uid,
+                displayName: (profile as any)?.displayName || (profile as any)?.zaloName || (profile as any)?.display_name || (profile as any)?.zalo_name || "",
+                zaloName: (profile as any)?.zaloName || (profile as any)?.zalo_name || "",
+                alias: "",
+                phoneNumber: (profile as any)?.phoneNumber || "",
+                isFriend: false,
+              });
+            }
+          }
+        }
       } catch (err: any) {
         console.log("⚠️ getUserInfo batch error:", err.message);
-        // Thêm placeholder cho các userId lỗi
-        for (const uid of batch) {
-          if (!results.find(r => r.userId === uid)) {
+      }
+      // Delay giữa các batch
+      if (i + 50 < nonFriendIds.length) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+
+    // Những userId không tìm thấy (có thể là group conversation) → gọi từng cái
+    for (const uid of nonFriendIds) {
+      if (!foundUids.has(uid)) {
+        try {
+          const info = await api.getUserInfo(uid);
+          const profile = info?.changed_profiles?.[uid] || info?.unchanged_profiles?.[uid];
+          if (profile) {
+            foundUids.add(uid);
             results.push({
               userId: uid,
-              displayName: "User " + uid.slice(-6),
+              displayName: (profile as any).displayName || (profile as any).zaloName || (profile as any).display_name || (profile as any).zalo_name || "",
+              zaloName: (profile as any).zaloName || (profile as any).zalo_name || "",
+              alias: "",
+              phoneNumber: (profile as any).phoneNumber || "",
+              isFriend: false,
+            });
+          } else {
+            console.log("[labels/members] No profile for uid:", uid, "response:", JSON.stringify(info).slice(0, 200));
+            results.push({
+              userId: uid,
+              displayName: "",
               zaloName: "",
               alias: "",
               phoneNumber: "",
               isFriend: false,
             });
           }
+        } catch (err: any) {
+          console.log("[labels/members] Single getUserInfo error for", uid, ":", err.message);
+          results.push({
+            userId: uid,
+            displayName: "",
+            zaloName: "",
+            alias: "",
+            phoneNumber: "",
+            isFriend: false,
+          });
         }
-      }
-      // Delay giữa các batch
-      if (i + 50 < nonFriendIds.length) {
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 300));
       }
     }
 
