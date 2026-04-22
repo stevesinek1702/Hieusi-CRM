@@ -331,7 +331,7 @@ async function addLabelContactsToList() {
       if (data.ok) {
         data.members.forEach(function(m) { labelMembersCache[m.userId] = m; });
         members = userIds.map(function(uid) {
-          return labelMembersCache[uid] || { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "" };
+          return labelMembersCache[uid] || { userId: uid, displayName: "ID: " + uid, zaloName: "" };
         });
       }
     } catch (e) {}
