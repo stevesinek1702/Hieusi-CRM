@@ -365,15 +365,38 @@ function normalizeSearch(s) {
 
 function filterFriends() {
   var q = normalizeSearch(document.getElementById("friendSearch").value.trim());
-  var source = selectedLabels.size > 0 ? getFriendsBySelectedLabels() : allFriends;
-  if (!q) { renderFriends(source); return; }
-  var filtered = source.filter(function(f) {
-    return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
-           normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
-           normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
-           (f.phoneNumber || "").indexOf(q) !== -1;
-  });
-  renderFriends(filtered);
+
+  if (selectedLabels.size > 0) {
+    // Khi có label, lấy từ cache
+    var allUserIds = new Set();
+    selectedLabels.forEach(function(labelId) {
+      var label = allLabels.find(function(l) { return String(l.id) === labelId; });
+      if (label) label.conversations.forEach(function(uid) { allUserIds.add(uid); });
+    });
+    var source = Array.from(allUserIds).map(function(uid) {
+      return labelMembersCache[uid] || allFriends.find(function(f) { return f.userId === uid; }) || { userId: uid, displayName: "User " + uid.slice(-6), zaloName: "", alias: "", phoneNumber: "", isFriend: false };
+    });
+    if (q) {
+      source = source.filter(function(f) {
+        return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
+               (f.phoneNumber || "").indexOf(q) !== -1;
+      });
+    }
+    renderFriends(source);
+  } else {
+    var source = allFriends;
+    if (q) {
+      source = source.filter(function(f) {
+        return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
+               normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
+               (f.phoneNumber || "").indexOf(q) !== -1;
+      });
+    }
+    renderFriends(source);
+  }
 }
 
 function getFilteredByLabel() {
