@@ -140,6 +140,7 @@ zaloRoutes.post("/labels/members", async (c) => {
       }
     }
 
+    console.log("[labels/members] Results:", results.length, "friends:", results.filter(r => r.isFriend).length, "non-friends:", results.filter(r => !r.isFriend).length);
     return c.json({ ok: true, members: results, total: results.length });
   } catch (err: any) {
     return c.json({ ok: false, error: err.message }, 500);
