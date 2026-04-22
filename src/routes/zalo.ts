@@ -72,6 +72,7 @@ zaloRoutes.post("/labels/members", async (c) => {
 
     const { userIds } = await c.req.json<{ userIds: string[] }>();
     if (!userIds?.length) return c.json({ ok: false, error: "Không có userId" });
+    console.log("[labels/members] Received", userIds.length, "userIds");
 
     // Lấy danh sách bạn bè để biết ai đã là bạn
     const friends = await getFriendList();
