@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { existsSync } from "fs";
+import { lookupCustomer } from "./customerdb";
 
 export interface Contact {
   tenDanhBa: string;
