@@ -377,7 +377,7 @@ function filterFriends() {
     var allUserIds = new Set();
     selectedLabels.forEach(function(labelId) {
       var label = allLabels.find(function(l) { return String(l.id) === labelId; });
-      if (label) label.conversations.forEach(function(uid) { allUserIds.add(uid); });
+      if (label) label.conversations.forEach(function(uid) { if (uid[0] !== 'g') allUserIds.add(uid); });
     });
     var source = Array.from(allUserIds).map(function(uid) {
       return labelMembersCache[uid] || allFriends.find(function(f) { return f.userId === uid; }) || { userId: uid, displayName: "ID: " + uid, zaloName: "", alias: "", phoneNumber: "", isFriend: false };
