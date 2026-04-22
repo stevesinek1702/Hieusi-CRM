@@ -414,9 +414,10 @@ function renderFriends(friends) {
       var isFriend = f.isFriend !== undefined ? f.isFriend : true;
       var friendBadge = isFriend ? '' : ' <span style="background:#ff9800;color:#000;padding:1px 5px;border-radius:3px;font-size:0.65rem;font-weight:bold">Chưa KB</span>';
       var rowBg = isFriend ? 'transparent' : '#1a1510';
+      var displayName = f.alias || f.displayName || f.zaloName || f.userId || "-";
       return "<tr style='border-bottom:1px solid #222;cursor:pointer;background:" + rowBg + "' onclick='addFriendToContacts(\"" + encodeURIComponent(JSON.stringify({id:f.userId,name:f.alias||f.displayName||f.zaloName||"",zalo:f.zaloName||""})) + "\")' onmouseenter='this.style.background=\"#252525\"' onmouseleave='this.style.background=\"" + rowBg + "\"'>" +
         "<td style='padding:4px 6px;color:#666'>" + (i + 1) + "</td>" +
-        "<td style='padding:4px 6px'>" + (f.displayName || "-") + friendBadge + "</td>" +
+        "<td style='padding:4px 6px'>" + displayName + friendBadge + "</td>" +
         "<td style='padding:4px 6px'>" + aliasCol + "</td>" +
         "<td style='padding:4px 6px;color:#999'>" + (f.zaloName || "-") + "</td>" +
         "<td style='padding:4px 6px;color:#666'>" + (f.phoneNumber || "-") + "</td>" +
