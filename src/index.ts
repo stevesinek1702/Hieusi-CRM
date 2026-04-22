@@ -39,6 +39,8 @@ tryAutoLogin().then((ok) => {
   }
   // Load schedule after login
   loadSchedule();
+  // Load customer DB
+  loadCustomerDb();
 });
 
 console.log(`🚀 Hieusi-CRM running at http://localhost:${PORT}`);
