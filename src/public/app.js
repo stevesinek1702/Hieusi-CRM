@@ -216,15 +216,19 @@ function toggleLabel(labelId) {
   }
   renderLabelTags();
 
-  // Also filter friend list view
-  if (selectedLabels.size === 0) {
-    renderFriends(allFriends);
-    document.getElementById("friendInfo").textContent = "Tổng bạn bè: " + allFriends.length;
-  } else {
-    var filtered = getFriendsBySelectedLabels();
-    renderFriends(filtered);
-    document.getElementById("friendInfo").textContent = "Đã chọn: " + filtered.length + " bạn bè";
+  // Apply cả label filter + search filter
+  var source = selectedLabels.size > 0 ? getFriendsBySelectedLabels() : allFriends;
+  var q = normalizeSearch((document.getElementById("friendSearch").value || "").trim());
+  if (q) {
+    source = source.filter(function(f) {
+      return normalizeSearch(f.displayName || "").indexOf(q) !== -1 ||
+             normalizeSearch(f.zaloName || "").indexOf(q) !== -1 ||
+             normalizeSearch(f.alias || "").indexOf(q) !== -1 ||
+             (f.phoneNumber || "").indexOf(q) !== -1;
+    });
   }
+  renderFriends(source);
+  document.getElementById("friendInfo").textContent = "Đã chọn: " + source.length + " bạn bè";
 }
 
 function getFriendsBySelectedLabels() {
